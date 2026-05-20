@@ -1,6 +1,7 @@
 # Rules For Environment Variables (.env)
 
 ## Security Rules
+
 1. Never commit `.env` files to Git or any version control system.
 2. Always add `.env` to `.gitignore`.
 3. Store all sensitive credentials inside `.env`, including:
@@ -22,11 +23,11 @@
 5. Never share `.env` contents publicly.
 6. Never generate placeholder secrets like:
    ```ts
-   process.env.API_KEY || "your_api_key_here"
+   process.env.API_KEY || 'your_api_key_here';
    ```
    Always use:
    ```ts
-   process.env.API_KEY
+   process.env.API_KEY;
    ```
 7. If an environment variable is required, validate it at startup and throw proper errors if missing.
 8. Never hardcode secrets directly inside source code.
@@ -36,6 +37,7 @@
 ---
 
 ## Naming Rules
+
 1. Use uppercase snake_case naming convention:
    ```env
    OPENAI_API_KEY=
@@ -55,9 +57,10 @@
 ---
 
 ## Usage Rules
+
 1. Access env variables only through:
    ```ts
-   process.env.VARIABLE_NAME
+   process.env.VARIABLE_NAME;
    ```
 2. Avoid repeated direct access throughout the application.
 3. Create centralized env/config helpers when required.
@@ -71,13 +74,14 @@
 ---
 
 ## Next.js Rules
+
 1. Backend secrets must remain server-only.
 2. AI keys, database URLs, and Clerk secrets must never reach client components.
 3. Use:
    - route handlers
    - server actions
    - server components
-   for secret-based operations.
+     for secret-based operations.
 4. Validate all required env variables during app startup.
 
 ---
@@ -85,7 +89,9 @@
 # Rules For Prisma
 
 ## Prisma Configuration Rules
+
 1. Never modify this section:
+
    ```prisma
    generator client {
      provider = "prisma-client"
@@ -96,6 +102,7 @@
      provider = "postgresql"
    }
    ```
+
 2. Never add `DATABASE_URL` directly inside `schema.prisma`.
 3. Database configuration is handled inside:
    ```txt
@@ -106,6 +113,7 @@
 ---
 
 ## Schema Rules
+
 1. Always design scalable and reusable models.
 2. Prefer UUID primary keys.
 3. Always include:
@@ -122,6 +130,7 @@
 ---
 
 ## Migration Rules
+
 1. Always use Prisma Migrate for schema changes.
 2. Never manually alter database tables outside Prisma migrations.
 3. After every schema update run:
@@ -138,6 +147,7 @@
 ---
 
 ## Query Rules
+
 1. Prefer Prisma query APIs over raw SQL.
 2. Use transactions for multi-step operations.
 3. Prevent N+1 queries using:
@@ -152,6 +162,7 @@
 ---
 
 ## Project Structure Rules
+
 1. Keep Prisma files organized:
    ```txt
    prisma/
@@ -170,6 +181,7 @@
 # Rules For API Creation
 
 ## Architecture Rules
+
 1. Always follow RESTful API principles.
 2. Use feature-based API architecture.
 3. Keep route handlers thin.
@@ -185,6 +197,7 @@
 ---
 
 ## HTTP Rules
+
 1. Use proper HTTP methods:
    - GET → fetch
    - POST → create
@@ -196,6 +209,7 @@
 ---
 
 ## Validation Rules
+
 1. Validate all incoming data.
 2. Use Zod for schema validation.
 3. Reject invalid payloads with proper errors.
@@ -205,6 +219,7 @@
 ---
 
 ## Authentication & Authorization Rules
+
 1. Use Clerk authentication for protected APIs.
 2. Validate authenticated users on the server.
 3. Add ownership checks for user resources.
@@ -218,6 +233,7 @@
 ---
 
 ## Security Rules
+
 1. Prevent:
    - SQL injection
    - XSS
@@ -236,6 +252,7 @@
 ---
 
 ## Rate Limiting Rules
+
 1. Use:
    ```bash
    pnpm install @upstash/ratelimit @upstash/redis
@@ -258,10 +275,11 @@
 ---
 
 ## Upstash Rate Limiting Rules
+
 1. Create reusable rate limiters:
    ```ts
-   import { Ratelimit } from "@upstash/ratelimit";
-   import { Redis } from "@upstash/redis";
+   import { Ratelimit } from '@upstash/ratelimit';
+   import { Redis } from '@upstash/redis';
    ```
 2. Keep Redis client centralized.
 3. Store Upstash credentials inside `.env`.
@@ -273,22 +291,22 @@
 ---
 
 ## Response Rules
+
 1. Return consistent API responses.
 
 Success:
+
 ```ts
 {
-  success: true,
-  data,
-  message
+  success: (true, data, message);
 }
 ```
 
 Error:
+
 ```ts
 {
-  success: false,
-  error
+  success: (false, error);
 }
 ```
 
@@ -299,6 +317,7 @@ Error:
 ---
 
 ## AI Feature Rules
+
 1. Keep AI prompts separated from route handlers.
 2. Store prompts inside dedicated modules.
 3. Validate AI responses before saving.
@@ -310,6 +329,7 @@ Error:
 ---
 
 ## Logging Rules
+
 1. Log important backend events.
 2. Never log:
    - secrets
@@ -322,6 +342,7 @@ Error:
 ---
 
 ## Documentation Rules
+
 1. Document all APIs clearly.
 2. Include:
    - request body
@@ -333,6 +354,7 @@ Error:
 ---
 
 ## Versioning Rules
+
 1. Use API versioning:
    ```txt
    /api/v1/
@@ -345,6 +367,7 @@ Error:
 # Development Workflow Rules
 
 ## Package Manager Rules
+
 1. Always use PNPM for package management.
 2. Never use npm.
 3. Use PNPM commands:
@@ -359,7 +382,9 @@ Error:
 ---
 
 ## Backend-First Workflow
+
 Current Project Workflow:
+
 1. Design database schema
 2. Create Prisma models
 3. Create migrations
@@ -374,6 +399,7 @@ Current Project Workflow:
 ---
 
 ## Code Quality Rules
+
 1. Use strict TypeScript.
 2. Avoid `any` types.
 3. Prefer reusable utilities.
@@ -386,7 +412,9 @@ Current Project Workflow:
 ---
 
 ## Folder Structure Rules
+
 Preferred Structure:
+
 ```txt
 src/
   features/
