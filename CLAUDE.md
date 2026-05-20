@@ -456,7 +456,6 @@ src/
 9. Track resume generation history.
 10. Design for future multi-template support.
 
-
 # Project Folder Structure
 
 ## Root Level Files
@@ -543,25 +542,31 @@ src/
 ## Key Architectural Patterns
 
 ### Backend-First Architecture
+
 - Database schema defined first in `prisma/schema.prisma`
 - Business logic in `features/*/services/`
 - Validation schemas in `features/*/schemas/` (using Zod)
 - Thin route handlers in `app/api/`
 
 ### Feature Organization
+
 Each feature (e.g., `features/user/`) contains:
+
 - **services/** - Business logic and data operations
 - **schemas/** - Zod validation schemas
 - **(future)** - actions/, api/, components/, types/, utils/ as needed
 
 ### Library Organization
+
 Centralized utilities in `lib/`:
+
 - **prisma/client.ts** - Single Prisma client instance
 - **ratelimit/client.ts** - Shared Redis connection
 - **ratelimit/limiters.ts** - Reusable rate limit configurations
 - **utils.ts** - Helper functions
 
 ### API Design
+
 - Versioned routes: `/api/v1/*`
 - RESTful methods: GET, POST, PUT/PATCH, DELETE
 - Consistent response format with `success` boolean
@@ -584,6 +589,7 @@ Centralized utilities in `lib/`:
 ## Environment Configuration
 
 All environment variables are stored in `.env` (not committed):
+
 - `DATABASE_URL` - PostgreSQL connection string
 - `UPSTASH_REDIS_REST_URL` - Redis REST API endpoint
 - `UPSTASH_REDIS_REST_TOKEN` - Redis authentication token
