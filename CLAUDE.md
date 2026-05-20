@@ -455,3 +455,148 @@ src/
 8. Cache reusable AI responses where applicable.
 9. Track resume generation history.
 10. Design for future multi-template support.
+
+
+# Project Folder Structure
+
+## Root Level Files
+
+- **CLAUDE.md** - Project-specific rules and guidelines (this file)
+- **package.json** - PNPM dependencies and scripts
+- **pnpm-lock.yaml** - Locked dependency versions
+- **tsconfig.json** - TypeScript configuration
+- **next.config.ts** - Next.js configuration
+- **prisma.config.ts** - Prisma database configuration (loads DATABASE_URL from .env)
+- **proxy.ts** - Proxy configuration
+- **.env** - Environment variables (NOT committed to Git, contains secrets)
+- **.gitignore** - Git ignore patterns
+- **.dockerignore** - Docker ignore patterns
+- **docker-compose.yml** - Docker Compose for local development (PostgreSQL)
+- **.prettierrc** - Code formatter config
+- **eslint.config.mjs** - ESLint configuration
+
+## Directory Structure
+
+```
+.
+├── app/                          # Next.js app directory (Pages Router)
+│   ├── api/
+│   │   └── v1/                  # API versioning
+│   │       └── user/
+│   │           └── sync/
+│   │               └── route.ts  # User synchronization endpoint
+│   ├── layout.tsx               # Root layout component
+│   ├── page.tsx                 # Home page
+│   ├── globals.css              # Global styles
+│   └── favicon.ico
+│
+├── features/                     # Feature-based modules
+│   └── user/                     # User feature
+│       ├── services/
+│       │   └── userService.ts    # Business logic for user operations
+│       └── schemas/
+│           └── userSchema.ts     # Zod schemas for user validation
+│
+├── lib/                          # Shared utilities and libraries
+│   ├── prisma/
+│   │   └── client.ts            # Centralized Prisma client instance
+│   ├── ratelimit/
+│   │   ├── client.ts            # Redis client for rate limiting
+│   │   └── limiters.ts          # Reusable rate limiter configurations
+│   └── utils.ts                 # General utility functions
+│
+├── components/                   # Reusable UI components
+│   └── ui/                       # Shadcn/ui component library
+│       ├── button.tsx
+│       ├── card.tsx
+│       ├── dialog.tsx
+│       └── ... (50+ UI components)
+│
+├── hooks/                        # React custom hooks
+│   └── use-mobile.ts            # Mobile detection hook
+│
+├── prisma/                       # Prisma ORM configuration
+│   ├── schema.prisma            # Database schema definition
+│   └── migrations/
+│       └── 20260519171610_init/  # Migration files
+│           └── migration.sql
+│
+├── generated/                    # Auto-generated files (by Prisma)
+│   └── prisma/                  # Generated Prisma client
+│
+├── public/                       # Static assets
+│   ├── file.svg
+│   ├── globe.svg
+│   ├── window.svg
+│   └── ... (static files)
+│
+├── node_modules/               # Dependencies (pnpm)
+│
+├── .next/                       # Next.js build output
+│
+├── .git/                        # Git repository
+│
+└── .claude/                     # Claude Code project settings
+    └── settings.local.json      # Local Claude Code configuration
+```
+
+## Key Architectural Patterns
+
+### Backend-First Architecture
+- Database schema defined first in `prisma/schema.prisma`
+- Business logic in `features/*/services/`
+- Validation schemas in `features/*/schemas/` (using Zod)
+- Thin route handlers in `app/api/`
+
+### Feature Organization
+Each feature (e.g., `features/user/`) contains:
+- **services/** - Business logic and data operations
+- **schemas/** - Zod validation schemas
+- **(future)** - actions/, api/, components/, types/, utils/ as needed
+
+### Library Organization
+Centralized utilities in `lib/`:
+- **prisma/client.ts** - Single Prisma client instance
+- **ratelimit/client.ts** - Shared Redis connection
+- **ratelimit/limiters.ts** - Reusable rate limit configurations
+- **utils.ts** - Helper functions
+
+### API Design
+- Versioned routes: `/api/v1/*`
+- RESTful methods: GET, POST, PUT/PATCH, DELETE
+- Consistent response format with `success` boolean
+- Rate limiting applied before business logic
+- Validation via Zod schemas before database operations
+
+## Technology Stack
+
+- **Framework:** Next.js 16.2.6
+- **ORM:** Prisma
+- **Database:** PostgreSQL
+- **Authentication:** Clerk
+- **Rate Limiting:** Upstash (Redis + Ratelimit)
+- **UI Components:** Shadcn/ui
+- **Validation:** Zod
+- **Styling:** Tailwind CSS
+- **Package Manager:** PNPM
+- **Deployment:** Docker (docker-compose.yml available)
+
+## Environment Configuration
+
+All environment variables are stored in `.env` (not committed):
+- `DATABASE_URL` - PostgreSQL connection string
+- `UPSTASH_REDIS_REST_URL` - Redis REST API endpoint
+- `UPSTASH_REDIS_REST_TOKEN` - Redis authentication token
+- `CLERK_SECRET_KEY` - Clerk authentication secret
+- And other service API keys
+
+See CLAUDE.md "Rules For Environment Variables" section for detailed env rules.
+
+## Important Notes for Future Development
+
+- Never create `src/` directory; use root-level `app/`, `features/`, `lib/` instead
+- Always validate data with Zod schemas before database operations
+- Keep rate limiters centralized in `lib/ratelimit/`
+- Never expose secrets in route handlers; use server actions or API routes only
+- Database migrations must be created with meaningful names: `pnpm prisma migrate dev --name descriptive_name`
+- After schema changes, run: `npx prisma generate`
