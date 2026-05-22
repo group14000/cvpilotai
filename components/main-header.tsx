@@ -1,0 +1,22 @@
+'use client';
+
+import React from 'react';
+import { SidebarTrigger } from '@/components/ui/sidebar';
+import { Separator } from '@/components/ui/separator';
+
+const MainHeader: React.FC = () => {
+  return (
+    <header className="border-border bg-background/95 sticky top-0 z-50 flex h-14 items-center gap-4 border-b px-4 backdrop-blur-sm">
+      <SidebarTrigger className="-ml-1" />
+      <Separator orientation="vertical" className="h-6" />
+      <div className="flex flex-1 items-center justify-between">
+        <h1 className="text-foreground text-sm font-semibold">CVPilot</h1>
+        <div className="flex items-center gap-2">
+          {/* Add user profile, notifications, etc. here */}
+        </div>
+      </div>
+    </header>
+  );
+};
+
+export default MainHeader;
