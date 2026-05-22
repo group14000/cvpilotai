@@ -478,65 +478,90 @@ src/
 
 ```
 .
-├── app/                          # Next.js app directory (Pages Router)
+├── app/                                    # Next.js App Router
+│   ├── (main)/                            # Main layout group
+│   │   ├── layout.tsx                     # Main layout with sidebar & header
+│   │   ├── dashboard/
+│   │   │   └── page.tsx                   # Dashboard page
+│   │   └── resumes/
+│   │       ├── page.tsx                   # Resumes listing page
+│   │       ├── new/
+│   │       │   └── page.tsx               # Template selection page
+│   │       └── create-resume/
+│   │           └── [slug]/
+│   │               └── page.tsx           # Dynamic resume creation page
 │   ├── api/
-│   │   └── v1/                  # API versioning
+│   │   └── v1/                            # API versioning
 │   │       └── user/
 │   │           └── sync/
-│   │               └── route.ts  # User synchronization endpoint
-│   ├── layout.tsx               # Root layout component
-│   ├── page.tsx                 # Home page
-│   ├── globals.css              # Global styles
+│   │               └── route.ts           # User synchronization endpoint
+│   ├── providers.tsx                      # Root providers (Sidebar, Query, Theme)
+│   ├── layout.tsx                         # Root layout component
+│   ├── page.tsx                           # Home page
+│   ├── globals.css                        # Global styles with theme variables
 │   └── favicon.ico
 │
-├── features/                     # Feature-based modules
-│   └── user/                     # User feature
+├── features/                              # Feature-based modules
+│   └── user/                              # User feature
 │       ├── services/
-│       │   └── userService.ts    # Business logic for user operations
+│       │   └── userService.ts             # Business logic for user operations
 │       └── schemas/
-│           └── userSchema.ts     # Zod schemas for user validation
+│           └── userSchema.ts              # Zod schemas for user validation
 │
-├── lib/                          # Shared utilities and libraries
+├── lib/                                   # Shared utilities and libraries
 │   ├── prisma/
-│   │   └── client.ts            # Centralized Prisma client instance
+│   │   └── client.ts                      # Centralized Prisma client instance
 │   ├── ratelimit/
-│   │   ├── client.ts            # Redis client for rate limiting
-│   │   └── limiters.ts          # Reusable rate limiter configurations
-│   └── utils.ts                 # General utility functions
+│   │   ├── client.ts                      # Redis client for rate limiting
+│   │   └── limiters.ts                    # Reusable rate limiter configurations
+│   └── utils.ts                           # General utility functions
 │
-├── components/                   # Reusable UI components
-│   └── ui/                       # Shadcn/ui component library
-│       ├── button.tsx
-│       ├── card.tsx
-│       ├── dialog.tsx
-│       └── ... (50+ UI components)
+├── components/                            # Reusable UI components
+│   ├── ui/                                # Shadcn/ui component library
+│   │   ├── button.tsx
+│   │   ├── card.tsx
+│   │   ├── input.tsx
+│   │   ├── label.tsx
+│   │   ├── sidebar.tsx
+│   │   ├── scroll-area.tsx
+│   │   └── ... (50+ UI components)
+│   ├── constants/
+│   │   ├── resume-templates.ts            # Resume template definitions
+│   │   └── sidebar-arrays.ts              # Sidebar navigation items
+│   ├── main-sidebar.tsx                   # Main application sidebar (modern SaaS design)
+│   ├── main-header.tsx                    # Top header component with trigger
+│   ├── theme-provider.tsx                 # Theme provider for dark/light mode
+│   └── ui/
+│       └── dropdown-menu.tsx
 │
-├── hooks/                        # React custom hooks
-│   └── use-mobile.ts            # Mobile detection hook
+├── hooks/                                 # React custom hooks
+│   └── use-mobile.ts                      # Mobile detection hook
 │
-├── prisma/                       # Prisma ORM configuration
-│   ├── schema.prisma            # Database schema definition
+├── prisma/                                # Prisma ORM configuration
+│   ├── schema.prisma                      # Database schema definition
 │   └── migrations/
-│       └── 20260519171610_init/  # Migration files
-│           └── migration.sql
+│       └── 20260520103548_update_resume_slug_uniqueness/
+│           └── migration.sql              # Migration files
 │
-├── generated/                    # Auto-generated files (by Prisma)
-│   └── prisma/                  # Generated Prisma client
+├── generated/                             # Auto-generated files (by Prisma)
+│   └── prisma/                            # Generated Prisma client
 │
-├── public/                       # Static assets
+├── public/                                # Static assets
+│   ├── resume-templates/                  # Resume template images
+│   │   ├── classic.jpg
+│   │   └── traditional.jpg
 │   ├── file.svg
 │   ├── globe.svg
 │   ├── window.svg
 │   └── ... (static files)
 │
-├── node_modules/               # Dependencies (pnpm)
+├── node_modules/                          # Dependencies (pnpm)
+├── .next/                                 # Next.js build output
+├── .git/                                  # Git repository
 │
-├── .next/                       # Next.js build output
-│
-├── .git/                        # Git repository
-│
-└── .claude/                     # Claude Code project settings
-    └── settings.local.json      # Local Claude Code configuration
+└── .claude/                               # Claude Code project settings
+    ├── settings.local.json                # Local Claude Code configuration
+    └── worktrees/                         # Optional worktree directories
 ```
 
 ## Key Architectural Patterns
