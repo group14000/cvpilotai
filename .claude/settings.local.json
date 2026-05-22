@@ -4,7 +4,11 @@
       "Bash(npx tsc *)",
       "Bash(pnpm add *)",
       "Bash(pnpm prisma *)",
-      "WebFetch(domain:ui.shadcn.com)"
+      "WebFetch(domain:ui.shadcn.com)",
+      "mcp__context7__query-docs",
+      "Bash(mkdir -p \"[slug]\")",
+      "Bash(mv \"page.tsx\" \"[slug]/page.tsx\")",
+      "Bash(pnpm build *)"
     ]
   }
 }

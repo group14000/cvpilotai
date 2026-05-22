@@ -45,6 +45,6 @@ export const resumeTemplates: ResumeTemplate[] = [
     name: 'Precision ATS',
     description:
       'Showcase career skills through a highlighted skills section. ATS-optimized resume template.',
-    image: '/public',
+    image: '/resume-templates/precission-ats.jpg',
   },
 ];

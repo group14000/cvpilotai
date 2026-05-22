@@ -71,7 +71,7 @@ const NewResume: React.FC = () => {
                 <CardContent>
                   <Button
                     onClick={() =>
-                      router.push(`/resumes/new?template=${template.id}`)
+                      router.push(`/resumes/create-resume/${template.id}`)
                     }
                     className="w-full gap-2"
                   >
