@@ -3,6 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ResumeForm } from '@/components/resume/resume-form';
 import { ResumePreview } from '@/components/resume/resume-preview';
+import { SaveResumeButton } from '@/components/resume/save-resume-button';
 import { resumeTemplates } from '@/components/constants/resume-templates';
 
 export default async function Page({
@@ -17,7 +18,7 @@ export default async function Page({
   return (
     /*
      * Full-height editor layout:
-     * - Top bar:    fixed height (h-14) with back button + template name
+     * - Top bar:    fixed height (h-14) — back button, template name, save button
      * - Body:       two columns filling the remaining viewport height
      *   - Left:     scrollable form panel (bg-background)
      *   - Right:    scrollable A4 preview panel (bg-muted)
@@ -25,6 +26,7 @@ export default async function Page({
     <div className="bg-background flex h-screen flex-col overflow-hidden">
       {/* ── Editor top bar ─────────────────────────────────────────────── */}
       <header className="border-border bg-background/95 flex h-14 shrink-0 items-center gap-3 border-b px-5 backdrop-blur-sm">
+        {/* Left — back navigation */}
         <Button
           variant="ghost"
           size="sm"
@@ -39,9 +41,13 @@ export default async function Page({
 
         <div className="bg-border mx-2 h-5 w-px" />
 
-        <span className="text-foreground text-sm font-semibold">
+        {/* Center — template name */}
+        <span className="text-foreground flex-1 text-sm font-semibold">
           {template?.name ?? slug} Template
         </span>
+
+        {/* Right — save action (client component) */}
+        <SaveResumeButton templateSlug={slug} />
       </header>
 
       {/* ── Two-panel editor body ─────────────────────────────────────── */}
