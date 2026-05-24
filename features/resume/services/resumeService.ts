@@ -1,6 +1,11 @@
 import { prisma } from '@/lib/prisma/client';
 import { generateResumeSlug } from '../utils/slugUtils';
-import type { CreateResumeServiceInput, ResumeCreatedResponse } from '../types';
+import type {
+  CreateResumeServiceInput,
+  ResumeCreatedResponse,
+  ResumeListItem,
+  ResumeDetail,
+} from '../types';
 
 // ─── Template auto-seed ───────────────────────────────────────────────────────
 //
@@ -109,4 +114,67 @@ export async function createResume(
   });
 
   return resume;
+}
+
+// ─── listResumes ──────────────────────────────────────────────────────────────
+
+/**
+ * Return lightweight metadata for all resumes owned by a user.
+ *
+ * Does NOT select the data Json column — avoids transferring large payloads
+ * when only the list view needs to be rendered.
+ *
+ * Ownership is enforced by the WHERE userId = input.userId clause — no
+ * additional check needed.
+ */
+export async function listResumes(userId: string): Promise<ResumeListItem[]> {
+  return prisma.resume.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      createdAt: true,
+      updatedAt: true,
+      template: {
+        select: { id: true, slug: true, name: true, thumbnail: true },
+      },
+    },
+  });
+}
+
+// ─── getResumeById ────────────────────────────────────────────────────────────
+
+/**
+ * Return the full resume (including data Json) for a specific resume.
+ *
+ * Ownership is enforced at the query level: combining id AND userId in a
+ * single WHERE clause means a non-owner receives null — indistinguishable
+ * from "not found".  This prevents ID enumeration attacks.
+ *
+ * Uses findFirst (not findUnique) because the (id, userId) pair is not a
+ * declared @@unique constraint — id alone is the PK, but we want both
+ * conditions in one DB round-trip.
+ *
+ * Returns null if the resume does not exist or is owned by a different user.
+ */
+export async function getResumeById(
+  resumeId: string,
+  userId: string
+): Promise<ResumeDetail | null> {
+  return prisma.resume.findFirst({
+    where: { id: resumeId, userId },
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      data: true,
+      createdAt: true,
+      updatedAt: true,
+      template: {
+        select: { id: true, slug: true, name: true, thumbnail: true },
+      },
+    },
+  });
 }

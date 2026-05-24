@@ -1,12 +1,19 @@
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { ResumeList } from '@/components/resume/resume-list';
 import { Plus } from 'lucide-react';
 import Link from 'next/link';
-import React from 'react';
 
-const Resume: React.FC = () => {
+/**
+ * /resumes — authenticated user's resume list.
+ *
+ * Server component shell: renders static header + "New Resume" button,
+ * then delegates the data-fetching list to <ResumeList /> (client component).
+ */
+export default function ResumesPage() {
   return (
     <ScrollArea className="h-[calc(100vh-4rem)] px-6 md:px-8">
+      {/* ── Page header ───────────────────────────────────────────────────── */}
       <header className="border-border flex flex-col gap-6 border-b py-6 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-col gap-2">
           <h1 className="text-foreground text-3xl font-bold tracking-tight md:text-4xl">
@@ -28,16 +35,10 @@ const Resume: React.FC = () => {
         </Button>
       </header>
 
-      {/* Content Area */}
+      {/* ── Resume list (client component — handles fetch + states) ───────── */}
       <div className="py-8">
-        <div className="text-muted-foreground text-center">
-          <p className="text-sm">
-            No resumes yet. Create your first resume to get started!
-          </p>
-        </div>
+        <ResumeList />
       </div>
     </ScrollArea>
   );
-};
-
-export default Resume;
+}

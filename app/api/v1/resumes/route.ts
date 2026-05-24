@@ -1,10 +1,83 @@
 import { auth, currentUser } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma/client';
-import { resumeCreateLimiter } from '@/lib/ratelimit/limiters';
+import {
+  resumeCreateLimiter,
+  resumeListLimiter,
+} from '@/lib/ratelimit/limiters';
 import { createResumeSchema } from '@/features/resume/schemas/resumeSchema';
-import { createResume } from '@/features/resume/services/resumeService';
+import {
+  createResume,
+  listResumes,
+} from '@/features/resume/services/resumeService';
 import { syncUser } from '@/features/user/services/userService';
+
+// ─── GET /api/v1/resumes ──────────────────────────────────────────────────────
+// List all resumes for the authenticated user.
+//
+// Response 200: { success: true, data: { resumes: ResumeListItem[] } }
+//
+// Auth:       Clerk (userId required)
+// Rate limit: 30 reads / minute / user (shared with GET /[id])
+//
+// User resolution:
+//   If the DB user row doesn't exist yet, the user has no resumes —
+//   return an empty list immediately without attempting sync.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function GET() {
+  try {
+    // ── 1. Authentication ──────────────────────────────────────────────────
+    const { userId } = await auth();
+
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // ── 2. Rate limiting ───────────────────────────────────────────────────
+    const { success, limit, remaining, reset } =
+      await resumeListLimiter.limit(userId);
+
+    if (!success) {
+      return NextResponse.json(
+        { success: false, error: 'Too many requests' },
+        {
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': limit.toString(),
+            'X-RateLimit-Remaining': remaining.toString(),
+            'X-RateLimit-Reset': reset.toString(),
+          },
+        }
+      );
+    }
+
+    // ── 3. Resolve Clerk userId → DB User ─────────────────────────────────
+    const dbUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { id: true },
+    });
+
+    // User not yet synced → no resumes exist, return empty list
+    if (!dbUser) {
+      return NextResponse.json({ success: true, data: { resumes: [] } });
+    }
+
+    // ── 4. Fetch resume list (service layer) ───────────────────────────────
+    const resumes = await listResumes(dbUser.id);
+
+    return NextResponse.json({ success: true, data: { resumes } });
+  } catch (error) {
+    console.error('[GET /api/v1/resumes]', error);
+    return NextResponse.json(
+      { success: false, error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
 
 // ─── POST /api/v1/resumes ─────────────────────────────────────────────────────
 // Create a new resume for the authenticated user.

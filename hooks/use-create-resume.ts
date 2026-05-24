@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { CreateResumeInput } from '@/features/resume/schemas/resumeSchema';
 import type { ResumeCreatedResponse } from '@/features/resume/types';
@@ -55,18 +55,20 @@ async function postCreateResume(
  *   - Loading state via `isPending`
  *   - Success toast + callback
  *   - Error toast
- *
- * Future:
- *   - On success, call queryClient.invalidateQueries(['resumes']) once
- *     the GET /api/v1/resumes list endpoint exists
+ *   - Invalidates ['resumes'] query so the list page refreshes automatically
  */
 export function useCreateResume(options?: {
   onSuccess?: (resume: ResumeCreatedResponse) => void;
 }) {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: postCreateResume,
 
     onSuccess: (data) => {
+      // Invalidate the resumes list so /resumes page shows the new entry.
+      void queryClient.invalidateQueries({ queryKey: ['resumes'] });
+
       toast.success('Resume saved!', {
         description: `"${data.data.resume.title}" has been saved to your account.`,
       });
