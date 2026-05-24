@@ -2,18 +2,11 @@
 
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from '@/components/ui/card';
 import { ArrowLeft } from 'lucide-react';
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { resumeTemplates } from '@/components/constants/resume-templates';
-import Image from 'next/image';
+import { ResumeTemplateCard } from '@/components/resume/template-card';
 
 const NewResume: React.FC = () => {
   const router = useRouter();
@@ -45,41 +38,13 @@ const NewResume: React.FC = () => {
       <section className="py-8">
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {resumeTemplates.map((template) => (
-            <div key={template.id} className="group cursor-pointer">
-              <Card className="hover:border-primary/50 h-full overflow-hidden transition-all duration-200 hover:shadow-lg">
-                {/* Template Preview */}
-                {template.image && (
-                  <div className="bg-muted relative aspect-9/12 w-full overflow-hidden">
-                    <Image
-                      src={template.image}
-                      alt={template.name}
-                      fill
-                      className="object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-                  </div>
-                )}
-
-                {/* Template Info */}
-                <CardHeader>
-                  <CardTitle className="text-lg">{template.name}</CardTitle>
-                  <CardDescription className="text-xs">
-                    {template.description}
-                  </CardDescription>
-                </CardHeader>
-
-                {/* Content/Action */}
-                <CardContent>
-                  <Button
-                    onClick={() =>
-                      router.push(`/resumes/create-resume/${template.id}`)
-                    }
-                    className="w-full gap-2"
-                  >
-                    <span>Use this template</span>
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
+            <ResumeTemplateCard
+              key={template.id}
+              slug={template.id}
+              title={template.name}
+              description={template.description}
+              image={template.image}
+            />
           ))}
         </div>
       </section>

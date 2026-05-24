@@ -478,117 +478,184 @@ src/
 
 ```
 .
-├── app/                                    # Next.js App Router
-│   ├── (main)/                            # Main layout group
-│   │   ├── layout.tsx                     # Main layout with sidebar & header
+├── app/                                         # Next.js App Router
+│   ├── (main)/                                 # Main layout group (sidebar + header)
+│   │   ├── layout.tsx                          # Layout: MainSidebar + MainHeader + SidebarInset
 │   │   ├── dashboard/
-│   │   │   └── page.tsx                   # Dashboard page
+│   │   │   └── page.tsx                        # Dashboard page
 │   │   └── resumes/
-│   │       ├── page.tsx                   # Resumes listing page
+│   │       ├── page.tsx                        # Resumes listing page
 │   │       ├── new/
-│   │       │   └── page.tsx               # Template selection page
+│   │       │   └── page.tsx                    # Template picker (uses ResumeTemplateCard)
 │   │       └── create-resume/
 │   │           └── [slug]/
-│   │               └── page.tsx           # Dynamic resume creation page
+│   │               └── page.tsx                # Resume editor: form (left) + preview (right)
 │   ├── api/
-│   │   └── v1/                            # API versioning
+│   │   └── v1/                                 # API versioning
 │   │       └── user/
 │   │           └── sync/
-│   │               └── route.ts           # User synchronization endpoint
-│   ├── providers.tsx                      # Root providers (Sidebar, Query, Theme)
-│   ├── layout.tsx                         # Root layout component
-│   ├── page.tsx                           # Home page
-│   ├── globals.css                        # Global styles with theme variables
+│   │               └── route.ts                # User synchronization endpoint (Clerk → DB)
+│   ├── providers.tsx                           # Root providers: SidebarProvider, QueryClient, Theme
+│   ├── layout.tsx                              # Root layout: ClerkProvider, ThemeProvider, Providers
+│   ├── page.tsx                                # Home / landing page
+│   ├── globals.css                             # Global styles + CSS theme variables (light/dark)
 │   └── favicon.ico
 │
-├── features/                              # Feature-based modules
-│   └── user/                              # User feature
-│       ├── services/
-│       │   └── userService.ts             # Business logic for user operations
-│       └── schemas/
-│           └── userSchema.ts              # Zod schemas for user validation
-│
-├── lib/                                   # Shared utilities and libraries
-│   ├── prisma/
-│   │   └── client.ts                      # Centralized Prisma client instance
-│   ├── ratelimit/
-│   │   ├── client.ts                      # Redis client for rate limiting
-│   │   └── limiters.ts                    # Reusable rate limiter configurations
-│   └── utils.ts                           # General utility functions
-│
-├── components/                            # Reusable UI components
-│   ├── ui/                                # Shadcn/ui component library
+├── components/                                 # Reusable UI components
+│   ├── ui/                                     # Shadcn/ui component library (50+ components)
+│   │   ├── accordion.tsx
 │   │   ├── button.tsx
 │   │   ├── card.tsx
 │   │   ├── input.tsx
 │   │   ├── label.tsx
-│   │   ├── sidebar.tsx
 │   │   ├── scroll-area.tsx
-│   │   └── ... (50+ UI components)
+│   │   ├── separator.tsx
+│   │   ├── sidebar.tsx
+│   │   ├── textarea.tsx
+│   │   └── ... (50+ components)
+│   ├── resume/                                 # Resume editor UI components
+│   │   ├── resume-form.tsx                     # Full section-based editor form (Zustand-connected)
+│   │   ├── resume-preview.tsx                  # A4 live preview wrapper (reads from store)
+│   │   └── template-card.tsx                   # Template picker card (ShadCN Card + Next Image)
+│   ├── templates/                              # Resume template implementations
+│   │   ├── index.ts                            # Registry: TemplateComponent type + TEMPLATE_COMPONENTS map
+│   │   ├── classic/
+│   │   │   └── template.tsx                    # Classic: two-column [160px_1fr] serif layout
+│   │   ├── traditional/
+│   │   │   └── template.tsx                    # Traditional: full-width bold uppercase section headers
+│   │   ├── professional/
+│   │   │   └── template.tsx                    # Professional: indigo sidebar + main content split
+│   │   ├── prime-ats/
+│   │   │   └── template.tsx                    # Prime ATS: ATS-safe, no columns, list-disc bullets
+│   │   ├── clean/
+│   │   │   └── template.tsx                    # Clean: emerald accents, vertical timeline lines
+│   │   └── precision-ats/
+│   │       └── template.tsx                    # Precision ATS: skills-highlight block, ATS-optimized
 │   ├── constants/
-│   │   ├── resume-templates.ts            # Resume template definitions
-│   │   └── sidebar-arrays.ts              # Sidebar navigation items
-│   ├── main-sidebar.tsx                   # Main application sidebar (modern SaaS design)
-│   ├── main-header.tsx                    # Top header component with trigger
-│   ├── theme-provider.tsx                 # Theme provider for dark/light mode
-│   └── ui/
-│       └── dropdown-menu.tsx
+│   │   ├── resume-templates.ts                 # ResumeTemplate[] array (id, name, description, image)
+│   │   └── sidebar-arrays.ts                   # SidebarItem[] for main navigation
+│   ├── main-sidebar.tsx                        # App sidebar: nav links + Clerk user footer + SignOut
+│   ├── main-header.tsx                         # Top header: SidebarTrigger + Separator + title
+│   └── theme-provider.tsx                      # next-themes ThemeProvider wrapper
 │
-├── hooks/                                 # React custom hooks
-│   └── use-mobile.ts                      # Mobile detection hook
+├── store/                                      # Zustand client-side state
+│   └── resume-store.ts                         # useResumeStore: resume state + all CRUD actions
+│                                               # (static initial ID "preview-draft" avoids hydration mismatch)
 │
-├── prisma/                                # Prisma ORM configuration
-│   ├── schema.prisma                      # Database schema definition
+├── types/                                      # Global TypeScript types
+│   └── resume.ts                               # Resume, PersonalInfo, Experience, Education, Skill,
+│                                               # Project, Certification, DescriptionBlock
+│
+├── features/                                   # Feature-based backend modules
+│   └── user/                                   # User feature
+│       ├── services/
+│       │   └── userService.ts                  # Business logic for user operations
+│       └── schemas/
+│           └── userSchema.ts                   # Zod schemas for user validation
+│
+├── lib/                                        # Shared utilities and libraries
+│   ├── prisma/
+│   │   └── client.ts                           # Centralized Prisma client instance
+│   ├── ratelimit/
+│   │   ├── client.ts                           # Redis client for rate limiting
+│   │   └── limiters.ts                         # Reusable rate limiter configurations
+│   └── utils.ts                                # General utility functions (cn, etc.)
+│
+├── hooks/                                      # React custom hooks
+│   └── use-mobile.ts                           # Mobile detection hook
+│
+├── prisma/                                     # Prisma ORM configuration
+│   ├── schema.prisma                           # Database schema definition
 │   └── migrations/
 │       └── 20260520103548_update_resume_slug_uniqueness/
-│           └── migration.sql              # Migration files
+│           └── migration.sql                   # @@unique([userId, slug]) on Resume
 │
-├── generated/                             # Auto-generated files (by Prisma)
-│   └── prisma/                            # Generated Prisma client
+├── generated/                                  # Auto-generated files (never edit manually)
+│   └── prisma/                                 # Generated Prisma client (output of prisma generate)
 │
-├── public/                                # Static assets
-│   ├── resume-templates/                  # Resume template images
+├── public/                                     # Static assets
+│   ├── resume-templates/                       # Preview images for template picker
 │   │   ├── classic.jpg
-│   │   └── traditional.jpg
-│   ├── file.svg
-│   ├── globe.svg
-│   ├── window.svg
-│   └── ... (static files)
+│   │   ├── traditional.jpg
+│   │   ├── Professional.jpg                    # Note: uppercase P (filename as-is)
+│   │   ├── prime-ats.jpg
+│   │   ├── Clean.jpg                           # Note: uppercase C (filename as-is)
+│   │   └── precission-ats.jpg                  # Note: typo in filename (double-s) — matches constants
+│   └── ... (SVG icons, favicon, etc.)
 │
-├── node_modules/                          # Dependencies (pnpm)
-├── .next/                                 # Next.js build output
-├── .git/                                  # Git repository
-│
-└── .claude/                               # Claude Code project settings
-    ├── settings.local.json                # Local Claude Code configuration
-    └── worktrees/                         # Optional worktree directories
+├── node_modules/                               # Dependencies (pnpm managed)
+├── .next/                                      # Next.js build output (gitignored)
+├── .git/                                       # Git repository
+└── .claude/                                    # Claude Code project settings
+    └── settings.local.json                     # Local Claude Code configuration
 ```
 
 ## Key Architectural Patterns
 
-### Backend-First Architecture
+### Frontend Resume Editor Architecture
+
+The resume editor is a fully client-side, stateless system (no DB calls during editing):
+
+```
+URL slug  →  ResumePreview  →  TEMPLATE_COMPONENTS[slug]  →  Template component
+                ↑                                                      ↑
+         reads from store                                    receives resume prop
+                ↑
+         useResumeStore (Zustand)
+                ↑
+         ResumeForm  →  calls store actions on every change
+```
+
+Key rules:
+
+- All templates accept `{ resume: Resume }` prop — no store access inside templates
+- Templates use **plain Tailwind + semantic HTML only** — no ShadCN inside templates (print/PDF safe)
+- A4 sizing is always `w-[794px] min-h-[1123px]` (210mm × 297mm at 96 dpi)
+- Store initial ID is **always the static string `"preview-draft"`** to prevent hydration mismatch
+- `crypto.randomUUID()` is only used inside action callbacks (runs client-side only)
+
+### Template Registry Pattern
+
+```ts
+// components/templates/index.ts
+export type TemplateComponent = ComponentType<{ resume: Resume }>;
+export const TEMPLATE_COMPONENTS: Record<string, TemplateComponent> = { ... };
+```
+
+Adding a new template requires only:
+
+1. Create `components/templates/<id>/template.tsx` with a default export
+2. Add entry to `TEMPLATE_COMPONENTS` in `index.ts`
+3. Add entry to `resumeTemplates` array in `components/constants/resume-templates.ts`
+4. Add preview image to `public/resume-templates/`
+
+### Resume Form Architecture
+
+`ResumeForm` is a single ScrollArea with sections. Each section is self-contained:
+
+- Personal Info → calls `updatePersonalInfo()` on every field change
+- Summary → calls `updateSummary()` on change
+- Experience / Education / Projects → Accordion per item, `update*` / `remove*` store actions
+- Skills → inline row list, `addSkill` / `updateSkill` / `removeSkill`
+- Certifications → flat card list, `addCertification` / `updateCertification` / `removeCertification`
+
+Description blocks (bullets) are stored as `DescriptionBlock[]` in the store but edited as a plain textarea (one line = one bullet). Parsed on `onChange`.
+
+### Backend-First Architecture (for API/DB features)
 
 - Database schema defined first in `prisma/schema.prisma`
 - Business logic in `features/*/services/`
 - Validation schemas in `features/*/schemas/` (using Zod)
 - Thin route handlers in `app/api/`
 
-### Feature Organization
-
-Each feature (e.g., `features/user/`) contains:
-
-- **services/** - Business logic and data operations
-- **schemas/** - Zod validation schemas
-- **(future)** - actions/, api/, components/, types/, utils/ as needed
-
 ### Library Organization
 
 Centralized utilities in `lib/`:
 
-- **prisma/client.ts** - Single Prisma client instance
-- **ratelimit/client.ts** - Shared Redis connection
-- **ratelimit/limiters.ts** - Reusable rate limit configurations
-- **utils.ts** - Helper functions
+- **prisma/client.ts** — Single Prisma client instance
+- **ratelimit/client.ts** — Shared Redis connection
+- **ratelimit/limiters.ts** — Reusable rate limit configurations
+- **utils.ts** — Helper functions (`cn`, etc.)
 
 ### API Design
 
@@ -600,14 +667,15 @@ Centralized utilities in `lib/`:
 
 ## Technology Stack
 
-- **Framework:** Next.js 16.2.6
+- **Framework:** Next.js 16.2.6 (App Router, Turbopack)
+- **State Management:** Zustand (client-side resume editor state)
 - **ORM:** Prisma
 - **Database:** PostgreSQL
 - **Authentication:** Clerk
 - **Rate Limiting:** Upstash (Redis + Ratelimit)
 - **UI Components:** Shadcn/ui
 - **Validation:** Zod
-- **Styling:** Tailwind CSS
+- **Styling:** Tailwind CSS v4
 - **Package Manager:** PNPM
 - **Deployment:** Docker (docker-compose.yml available)
 
@@ -615,10 +683,10 @@ Centralized utilities in `lib/`:
 
 All environment variables are stored in `.env` (not committed):
 
-- `DATABASE_URL` - PostgreSQL connection string
-- `UPSTASH_REDIS_REST_URL` - Redis REST API endpoint
-- `UPSTASH_REDIS_REST_TOKEN` - Redis authentication token
-- `CLERK_SECRET_KEY` - Clerk authentication secret
+- `DATABASE_URL` — PostgreSQL connection string
+- `UPSTASH_REDIS_REST_URL` — Redis REST API endpoint
+- `UPSTASH_REDIS_REST_TOKEN` — Redis authentication token
+- `CLERK_SECRET_KEY` — Clerk authentication secret
 - And other service API keys
 
 See CLAUDE.md "Rules For Environment Variables" section for detailed env rules.
@@ -626,8 +694,12 @@ See CLAUDE.md "Rules For Environment Variables" section for detailed env rules.
 ## Important Notes for Future Development
 
 - Never create `src/` directory; use root-level `app/`, `features/`, `lib/` instead
+- `store/` and `types/` live at the root level alongside `app/`, `lib/`, `features/`
 - Always validate data with Zod schemas before database operations
 - Keep rate limiters centralized in `lib/ratelimit/`
 - Never expose secrets in route handlers; use server actions or API routes only
 - Database migrations must be created with meaningful names: `pnpm prisma migrate dev --name descriptive_name`
 - After schema changes, run: `npx prisma generate`
+- Template components must **never** use `useResumeStore` directly — always receive `resume` as a prop
+- Do not use ShadCN components inside template files — keep them print/PDF compatible
+- The `public/resume-templates/` image filenames have inconsistent casing (Professional.jpg, Clean.jpg) and a typo (precission-ats.jpg) — these must match exactly what's in `resume-templates.ts`
