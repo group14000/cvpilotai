@@ -49,3 +49,20 @@ export const resumeDeleteLimiter = new Ratelimit({
   limiter: Ratelimit.slidingWindow(10, '1 m'),
   prefix: 'ratelimit:resume:delete',
 });
+
+// 5 AI optimization requests per hour per user.
+//
+// Reasoning:
+//   - DeepSeek V4 Flash free tier: ~200 req/day account-wide.
+//     At 5/hr/user, just 40 concurrent active users saturates the daily
+//     quota — this forces migration to a paid tier before real scale.
+//   - Each call: ~3,000–5,000 input tokens + ~1,500 output tokens.
+//   - Legitimate use: 2–3 job applications per session. 5/hr is generous.
+//   - Sliding window prevents boundary-burst attacks.
+//
+// Redis key prefix: ratelimit:ai:optimize:<userId>
+export const aiOptimizeLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, '1 h'),
+  prefix: 'ratelimit:ai:optimize',
+});

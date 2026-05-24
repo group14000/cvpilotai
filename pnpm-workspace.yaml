@@ -1,5 +1,6 @@
 allowBuilds:
   '@clerk/shared': false
+  '@openrouter/sdk': true
   '@prisma/engines': false
   esbuild: true
   msw: true

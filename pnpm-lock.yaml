@@ -13,6 +13,9 @@ importers:
       '@clerk/nextjs':
         specifier: ^7.3.5
         version: 7.3.5(next@16.2.6(@babel/core@7.29.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@openrouter/sdk':
+        specifier: ^0.12.35
+        version: 0.12.35
       '@prisma/adapter-pg':
         specifier: ^7.8.0
         version: 7.8.0
@@ -1390,6 +1393,12 @@ packages:
     resolution:
       {
         integrity: sha512-U69T3ItWHvLwGg5eJ0n3I62nWuE6ilHlmz7zM0npLBRvPRd7e6NYmg54vvRtP5mZG7kZqZCFVdsTWo7BPtBujg==,
+      }
+
+  '@openrouter/sdk@0.12.35':
+    resolution:
+      {
+        integrity: sha512-s4QVLLnG1AmfW3TjnnHUqGfsCkzwVK+kboGcZmKbde09m1DPqgzl4RUFt/HJ5v97MX8aEaN0UG3mKv2S+qj2Gw==,
       }
 
   '@prisma/adapter-pg@7.8.0':
@@ -8244,6 +8253,10 @@ snapshots:
       outvariant: 1.4.3
 
   '@open-draft/until@2.1.0': {}
+
+  '@openrouter/sdk@0.12.35':
+    dependencies:
+      zod: 4.4.3
 
   '@prisma/adapter-pg@7.8.0':
     dependencies:

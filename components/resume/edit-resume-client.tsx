@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ResumeForm } from '@/components/resume/resume-form';
 import { ResumePreview } from '@/components/resume/resume-preview';
 import { UpdateResumeButton } from '@/components/resume/update-resume-button';
+import { OptimizeResumeButton } from '@/components/ai/optimize-resume-button';
 import { useResumeStore } from '@/store/resume-store';
 import { resumeTemplates } from '@/components/constants/resume-templates';
 import type { Resume } from '@/types/resume';
@@ -89,6 +90,9 @@ export function EditResumeClient({ resume, templateSlug }: Props) {
         <span className="text-foreground flex-1 text-sm font-semibold">
           {template?.name ?? templateSlug} Template
         </span>
+
+        {/* AI optimization (opens dialog with JD input → diff view) */}
+        <OptimizeResumeButton resumeId={resume.id} />
 
         {/* Right — save action (PATCH mutation) */}
         <UpdateResumeButton resumeId={resume.id} />

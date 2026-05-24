@@ -11,7 +11,8 @@
       "Bash(pnpm build *)",
       "Bash(Get-ChildItem *)",
       "Bash(Test-Path \"C:\\\\Users\\\\hp\\\\OneDrive\\\\Documents\\\\github\\\\cvpilotai\\\\app\\\\\\(main\\)\\\\resumes\\\\[id]\\\\\" -PathType Container *)",
-      "Bash(edit\")"
+      "Bash(edit\")",
+      "Bash(xargs grep -l \"openrouter\\\\|openai\\\\|anthropic\\\\|ai\\\\|llm\")"
     ]
   }
 }

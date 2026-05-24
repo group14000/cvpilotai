@@ -8,6 +8,11 @@ import type {
   Education,
   Certification,
 } from '@/types/resume';
+import type {
+  AiOptimizationState,
+  PendingAiOptimization,
+  SectionStatus,
+} from '@/features/ai/types';
 
 // ─── Static initial state ───────────────────────────────────────────────────
 // Uses a static id ("preview-draft") instead of crypto.randomUUID() to avoid
@@ -190,6 +195,67 @@ type ResumeStore = {
    * after navigating back from an edit session.
    */
   resetResume: () => void;
+
+  // ── AI optimization state + actions ────────────────────────────────────────
+  //
+  // The AI optimization slice is a separate overlay — it holds pending
+  // AI suggestions WITHOUT touching the live `resume` state until the user
+  // explicitly accepts. This guarantees the user can always cancel without
+  // data loss.
+
+  /** Current AI optimization state. Null when no optimization is in progress. */
+  aiOptimization: AiOptimizationState;
+
+  /** Called from the TanStack mutation `onMutate` — shows loading state. */
+  setAiOptimizationLoading: () => void;
+
+  /**
+   * Called from the TanStack mutation `onSuccess` — stores the AI result
+   * and initializes all section acceptance statuses to 'pending'.
+   */
+  setAiOptimizationResult: (result: PendingAiOptimization) => void;
+
+  /** Called from the TanStack mutation `onError` — clears pending data. */
+  setAiOptimizationError: () => void;
+
+  /**
+   * Reset the entire AI optimization slice to null.
+   * Called when the user dismisses the dialog without applying, or after
+   * `applyAllAcceptedAiChanges()` completes.
+   */
+  clearAiOptimization: () => void;
+
+  /**
+   * Mark a section or individual item as accepted.
+   * - For 'summary' and 'skills': no itemId needed (whole section)
+   * - For 'experiences' and 'projects': provide the item's id
+   */
+  acceptAiSection: (
+    section: 'summary' | 'experiences' | 'projects' | 'skills',
+    itemId?: string
+  ) => void;
+
+  /**
+   * Mark a section or individual item as rejected.
+   * Same signature as acceptAiSection.
+   */
+  rejectAiSection: (
+    section: 'summary' | 'experiences' | 'projects' | 'skills',
+    itemId?: string
+  ) => void;
+
+  /**
+   * Apply all 'accepted' sections from the pending AI result to the live resume.
+   *
+   * - Accepted summary → replaces resume.summary
+   * - Accepted experiences → replaces description[] for each accepted experience
+   * - Accepted projects → replaces description[] for each accepted project
+   * - Accepted skills → calls addSkill() for each suggested skill
+   *
+   * Reads from the Zustand state at call time (inside set() callback) to
+   * avoid stale closure issues. Calls clearAiOptimization() after applying.
+   */
+  applyAllAcceptedAiChanges: () => void;
 };
 
 // ─── Store ───────────────────────────────────────────────────────────────────
@@ -347,4 +413,186 @@ export const useResumeStore = create<ResumeStore>((set) => ({
   // ── Edit lifecycle ──
   hydrateResume: (resume) => set({ resume }),
   resetResume: () => set({ resume: INITIAL_RESUME }),
+
+  // ── AI optimization ──
+  aiOptimization: null,
+
+  setAiOptimizationLoading: () =>
+    set({
+      aiOptimization: {
+        status: 'loading',
+        pending: null,
+        sectionAcceptance: null,
+      },
+    }),
+
+  setAiOptimizationResult: (result) =>
+    set({
+      aiOptimization: {
+        status: 'success',
+        pending: result,
+        sectionAcceptance: {
+          summary: 'pending',
+          experiences: Object.fromEntries(
+            result.optimizedExperiences.map((e) => [
+              e.id,
+              'pending' as SectionStatus,
+            ])
+          ),
+          projects: Object.fromEntries(
+            result.optimizedProjects.map((p) => [
+              p.id,
+              'pending' as SectionStatus,
+            ])
+          ),
+          skills: result.suggestedSkills.length > 0 ? 'pending' : 'rejected',
+        },
+      },
+    }),
+
+  setAiOptimizationError: () =>
+    set({
+      aiOptimization: {
+        status: 'error',
+        pending: null,
+        sectionAcceptance: null,
+      },
+    }),
+
+  clearAiOptimization: () => set({ aiOptimization: null }),
+
+  acceptAiSection: (section, itemId) =>
+    set((s) => {
+      if (!s.aiOptimization?.sectionAcceptance) return s;
+      const acc = s.aiOptimization.sectionAcceptance;
+
+      if (section === 'summary' || section === 'skills') {
+        return {
+          aiOptimization: {
+            ...s.aiOptimization,
+            sectionAcceptance: {
+              ...acc,
+              [section]: 'accepted' as SectionStatus,
+            },
+          },
+        };
+      }
+
+      if (!itemId) return s;
+      return {
+        aiOptimization: {
+          ...s.aiOptimization,
+          sectionAcceptance: {
+            ...acc,
+            [section]: {
+              ...acc[section],
+              [itemId]: 'accepted' as SectionStatus,
+            },
+          },
+        },
+      };
+    }),
+
+  rejectAiSection: (section, itemId) =>
+    set((s) => {
+      if (!s.aiOptimization?.sectionAcceptance) return s;
+      const acc = s.aiOptimization.sectionAcceptance;
+
+      if (section === 'summary' || section === 'skills') {
+        return {
+          aiOptimization: {
+            ...s.aiOptimization,
+            sectionAcceptance: {
+              ...acc,
+              [section]: 'rejected' as SectionStatus,
+            },
+          },
+        };
+      }
+
+      if (!itemId) return s;
+      return {
+        aiOptimization: {
+          ...s.aiOptimization,
+          sectionAcceptance: {
+            ...acc,
+            [section]: {
+              ...acc[section],
+              [itemId]: 'rejected' as SectionStatus,
+            },
+          },
+        },
+      };
+    }),
+
+  applyAllAcceptedAiChanges: () =>
+    set((s) => {
+      if (
+        !s.aiOptimization ||
+        s.aiOptimization.status !== 'success' ||
+        !s.aiOptimization.pending ||
+        !s.aiOptimization.sectionAcceptance
+      ) {
+        return s;
+      }
+
+      const { pending, sectionAcceptance } = s.aiOptimization;
+      let resume = { ...s.resume };
+
+      // Apply accepted summary
+      if (sectionAcceptance.summary === 'accepted') {
+        resume = { ...resume, summary: pending.optimizedSummary };
+      }
+
+      // Apply accepted experience descriptions
+      if (Object.keys(sectionAcceptance.experiences).length > 0) {
+        resume = {
+          ...resume,
+          experiences: resume.experiences.map((exp) => {
+            if (sectionAcceptance.experiences[exp.id] === 'accepted') {
+              const optimized = pending.optimizedExperiences.find(
+                (e) => e.id === exp.id
+              );
+              if (optimized) {
+                return { ...exp, description: optimized.description };
+              }
+            }
+            return exp;
+          }),
+        };
+      }
+
+      // Apply accepted project descriptions
+      if (Object.keys(sectionAcceptance.projects).length > 0) {
+        resume = {
+          ...resume,
+          projects: resume.projects.map((proj) => {
+            if (sectionAcceptance.projects[proj.id] === 'accepted') {
+              const optimized = pending.optimizedProjects.find(
+                (p) => p.id === proj.id
+              );
+              if (optimized) {
+                return { ...proj, description: optimized.description };
+              }
+            }
+            return proj;
+          }),
+        };
+      }
+
+      // Apply accepted skill suggestions (add new skills)
+      if (sectionAcceptance.skills === 'accepted') {
+        const newSkills = pending.suggestedSkills.map((sk) => ({
+          id: crypto.randomUUID(),
+          name: sk.name,
+          proficiency: sk.proficiency,
+        }));
+        resume = {
+          ...resume,
+          skills: [...resume.skills, ...newSkills],
+        };
+      }
+
+      return { resume, aiOptimization: null };
+    }),
 }));
