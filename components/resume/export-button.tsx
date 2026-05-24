@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Download, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import axios, { isAxiosError } from 'axios';
 
 type Props = {
   /** The DB resume id used to construct the export URL. */
@@ -16,8 +17,9 @@ type Props = {
  * "Download PDF" button for a saved resume.
  *
  * Triggers GET /api/v1/resumes/[id]/export which returns a binary PDF stream.
- * Uses a programmatic fetch so we can show a loading spinner while Playwright
- * is generating the PDF (typically 1–3 seconds).
+ * Uses axios with responseType: 'arraybuffer' so the binary PDF is received
+ * intact. On error (JSON body), the ArrayBuffer is decoded back to text and
+ * parsed to extract the user-facing error message.
  *
  * On success: creates a temporary <a> element to trigger the browser save
  * dialog.  On error (e.g. rate limit): shows a sonner error toast.
@@ -34,20 +36,16 @@ export function ExportButton({ resumeId, resumeTitle }: Props) {
     setIsGenerating(true);
 
     try {
-      const res = await fetch(`/api/v1/resumes/${resumeId}/export`);
+      // responseType: 'arraybuffer' — receives binary PDF data intact.
+      // Axios throws on non-2xx status; the error body (JSON) is also an
+      // ArrayBuffer in this mode and is decoded in the catch block below.
+      const { data } = await axios.get<ArrayBuffer>(
+        `/api/v1/resumes/${resumeId}/export`,
+        { responseType: 'arraybuffer' }
+      );
 
-      if (!res.ok) {
-        // Try to parse the JSON error body
-        const json = await res.json().catch(() => null);
-        const msg =
-          (json as { error?: string } | null)?.error ??
-          'Failed to generate PDF';
-        toast.error('Export failed', { description: msg });
-        return;
-      }
-
-      // Convert binary response to an object URL and trigger download
-      const blob = await res.blob();
+      // Convert ArrayBuffer → Blob → object URL → trigger download
+      const blob = new Blob([data], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
 
       const anchor = document.createElement('a');
@@ -61,7 +59,22 @@ export function ExportButton({ resumeId, resumeTitle }: Props) {
       URL.revokeObjectURL(url);
 
       toast.success('PDF downloaded!');
-    } catch {
+    } catch (error) {
+      // When responseType is 'arraybuffer', Axios error bodies are also
+      // ArrayBuffers — decode them back to text to extract the JSON message.
+      if (isAxiosError(error) && error.response?.data instanceof ArrayBuffer) {
+        try {
+          const text = new TextDecoder().decode(error.response.data);
+          const json = JSON.parse(text) as { error?: string };
+          toast.error('Export failed', {
+            description: json.error ?? 'Failed to generate PDF',
+          });
+          return;
+        } catch {
+          // JSON parsing failed — fall through to generic message
+        }
+      }
+
       toast.error('Export failed', {
         description: 'An unexpected error occurred. Please try again.',
       });

@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import axios, { isAxiosError } from 'axios';
 import type { UpdateResumeInput } from '@/features/resume/schemas/resumeSchema';
 import type { ResumeUpdatedResponse } from '@/features/resume/types';
 
@@ -19,28 +20,24 @@ type UpdateResumeError = {
   details?: unknown;
 };
 
-type UpdateResumeResponse = UpdateResumeSuccess | UpdateResumeError;
-
 // ─── Fetcher ──────────────────────────────────────────────────────────────────
 
 async function patchResume(
   resumeId: string,
   payload: UpdateResumeInput
 ): Promise<UpdateResumeSuccess> {
-  const res = await fetch(`/api/v1/resumes/${resumeId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  const json: UpdateResumeResponse = await res.json();
-
-  if (!res.ok || !json.success) {
-    const msg = (json as UpdateResumeError).error ?? 'Failed to save changes';
-    throw new Error(msg);
+  try {
+    const { data } = await axios.patch<UpdateResumeSuccess>(
+      `/api/v1/resumes/${resumeId}`,
+      payload
+    );
+    return data;
+  } catch (error) {
+    if (isAxiosError<UpdateResumeError>(error)) {
+      throw new Error(error.response?.data?.error ?? 'Failed to save changes');
+    }
+    throw error;
   }
-
-  return json as UpdateResumeSuccess;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────

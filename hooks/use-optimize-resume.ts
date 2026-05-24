@@ -2,6 +2,7 @@
 
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import axios, { isAxiosError } from 'axios';
 import { useResumeStore } from '@/store/resume-store';
 import type { PendingAiOptimization } from '@/features/ai/types';
 
@@ -18,29 +19,24 @@ type OptimizeResumeError = {
   error: string;
 };
 
-type OptimizeResumeResponse = OptimizeResumeSuccess | OptimizeResumeError;
-
 // ─── Fetcher ──────────────────────────────────────────────────────────────────
 
 async function postOptimizeResume(
   resumeId: string,
   jobDescription: string
 ): Promise<OptimizeResumeSuccess> {
-  const res = await fetch(`/api/v1/resumes/${resumeId}/optimize`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jobDescription }),
-  });
-
-  const json: OptimizeResumeResponse = await res.json();
-
-  if (!res.ok || !json.success) {
-    throw new Error(
-      (json as OptimizeResumeError).error ?? 'Optimization failed'
+  try {
+    const { data } = await axios.post<OptimizeResumeSuccess>(
+      `/api/v1/resumes/${resumeId}/optimize`,
+      { jobDescription }
     );
+    return data;
+  } catch (error) {
+    if (isAxiosError<OptimizeResumeError>(error)) {
+      throw new Error(error.response?.data?.error ?? 'Optimization failed');
+    }
+    throw error;
   }
-
-  return json as OptimizeResumeSuccess;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────

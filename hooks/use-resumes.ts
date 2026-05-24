@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import axios, { isAxiosError } from 'axios';
 
 // ─── API response shapes ──────────────────────────────────────────────────────
 
@@ -35,20 +36,18 @@ type ListResumesError = {
   error: string;
 };
 
-type ListResumesResponse = ListResumesSuccess | ListResumesError;
-
 // ─── Fetcher ──────────────────────────────────────────────────────────────────
 
 async function fetchResumes(): Promise<ResumeListItemJSON[]> {
-  const res = await fetch('/api/v1/resumes');
-  const json: ListResumesResponse = await res.json();
-
-  if (!res.ok || !json.success) {
-    const msg = (json as ListResumesError).error ?? 'Failed to fetch resumes';
-    throw new Error(msg);
+  try {
+    const { data } = await axios.get<ListResumesSuccess>('/api/v1/resumes');
+    return data.data.resumes;
+  } catch (error) {
+    if (isAxiosError<ListResumesError>(error)) {
+      throw new Error(error.response?.data?.error ?? 'Failed to fetch resumes');
+    }
+    throw error;
   }
-
-  return (json as ListResumesSuccess).data.resumes;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────

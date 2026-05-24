@@ -2,25 +2,22 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import axios, { isAxiosError } from 'axios';
 
 // ─── API response shapes ──────────────────────────────────────────────────────
 
-type DeleteResumeSuccess = { success: true; message: string };
 type DeleteResumeError = { success: false; error: string };
-type DeleteResumeResponse = DeleteResumeSuccess | DeleteResumeError;
 
 // ─── Fetcher ──────────────────────────────────────────────────────────────────
 
 async function fetchDeleteResume(resumeId: string): Promise<void> {
-  const res = await fetch(`/api/v1/resumes/${resumeId}`, {
-    method: 'DELETE',
-  });
-
-  const json: DeleteResumeResponse = await res.json();
-
-  if (!res.ok || !json.success) {
-    const msg = (json as DeleteResumeError).error ?? 'Failed to delete resume';
-    throw new Error(msg);
+  try {
+    await axios.delete(`/api/v1/resumes/${resumeId}`);
+  } catch (error) {
+    if (isAxiosError<DeleteResumeError>(error)) {
+      throw new Error(error.response?.data?.error ?? 'Failed to delete resume');
+    }
+    throw error;
   }
 }
 

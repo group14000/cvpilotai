@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import axios, { isAxiosError } from 'axios';
 import type { CreateResumeInput } from '@/features/resume/schemas/resumeSchema';
 import type { ResumeCreatedResponse } from '@/features/resume/types';
 
@@ -19,27 +20,23 @@ type CreateResumeError = {
   details?: unknown;
 };
 
-type CreateResumeResponse = CreateResumeSuccess | CreateResumeError;
-
 // ─── Fetcher ──────────────────────────────────────────────────────────────────
 
 async function postCreateResume(
   payload: CreateResumeInput
 ): Promise<CreateResumeSuccess> {
-  const res = await fetch('/api/v1/resumes', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  const json: CreateResumeResponse = await res.json();
-
-  if (!res.ok || !json.success) {
-    const msg = (json as CreateResumeError).error ?? 'Failed to save resume';
-    throw new Error(msg);
+  try {
+    const { data } = await axios.post<CreateResumeSuccess>(
+      '/api/v1/resumes',
+      payload
+    );
+    return data;
+  } catch (error) {
+    if (isAxiosError<CreateResumeError>(error)) {
+      throw new Error(error.response?.data?.error ?? 'Failed to save resume');
+    }
+    throw error;
   }
-
-  return json as CreateResumeSuccess;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
