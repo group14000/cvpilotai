@@ -33,3 +33,19 @@ export const resumeExportLimiter = new Ratelimit({
   limiter: Ratelimit.slidingWindow(5, '1 h'),
   prefix: 'ratelimit:resume:export',
 });
+
+// 10 resume updates per minute per user.
+// PATCH writes data to DB — same cost class as POST creates.
+export const resumeUpdateLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, '1 m'),
+  prefix: 'ratelimit:resume:update',
+});
+
+// 10 resume deletes per minute per user.
+// Cheap DB operation but we still guard against bulk deletion abuse.
+export const resumeDeleteLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, '1 m'),
+  prefix: 'ratelimit:resume:delete',
+});

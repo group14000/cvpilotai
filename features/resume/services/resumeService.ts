@@ -3,8 +3,10 @@ import { generateResumeSlug } from '../utils/slugUtils';
 import type {
   CreateResumeServiceInput,
   ResumeCreatedResponse,
+  ResumeUpdatedResponse,
   ResumeListItem,
   ResumeDetail,
+  ResumeData,
 } from '../types';
 
 // ─── Template auto-seed ───────────────────────────────────────────────────────
@@ -177,4 +179,76 @@ export async function getResumeById(
       },
     },
   });
+}
+
+// ─── updateResume ─────────────────────────────────────────────────────────────
+
+/**
+ * Update an existing resume's content (and optionally its title).
+ *
+ * Ownership strategy: two queries — findFirst to verify ownership, then
+ * update by id only (id is the PK; ownership is already confirmed).
+ * We use two queries instead of updateMany because updateMany returns
+ * { count } with no row data, and we need the updated row for the response.
+ *
+ * @throws {Error} with message "Resume not found" if not found or not owned
+ */
+export async function updateResume(
+  resumeId: string,
+  userId: string,
+  input: { data: ResumeData; title?: string }
+): Promise<ResumeUpdatedResponse> {
+  // 1. Verify ownership (single DB round-trip with compound WHERE)
+  const existing = await prisma.resume.findFirst({
+    where: { id: resumeId, userId },
+    select: { id: true },
+  });
+
+  if (!existing) {
+    throw new Error('Resume not found');
+  }
+
+  // 2. Update — preserve current title if no new title supplied
+  const updated = await prisma.resume.update({
+    where: { id: resumeId },
+    data: {
+      data: input.data,
+      ...(input.title ? { title: input.title } : {}),
+    },
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      templateId: true,
+      updatedAt: true,
+    },
+  });
+
+  return updated;
+}
+
+// ─── deleteResume ─────────────────────────────────────────────────────────────
+
+/**
+ * Hard-delete a resume owned by the given user.
+ *
+ * Uses deleteMany with compound WHERE (id AND userId) for a single atomic
+ * DB round-trip.  Returns true if a row was deleted, false if the resume
+ * does not exist or is owned by a different user.
+ *
+ * The API layer maps false → 404 in both cases (no ID enumeration).
+ *
+ * Future soft-delete: replace the body with
+ *   prisma.resume.updateMany({ where: { id, userId }, data: { deletedAt: new Date() } })
+ *   The function signature and callers stay unchanged.
+ */
+export async function deleteResume(
+  resumeId: string,
+  userId: string
+): Promise<boolean> {
+  const result = await prisma.resume.deleteMany({
+    where: { id: resumeId, userId },
+  });
+
+  return result.count === 1;
 }

@@ -9,7 +9,9 @@
       "Bash(mkdir -p \"[slug]\")",
       "Bash(mv \"page.tsx\" \"[slug]/page.tsx\")",
       "Bash(pnpm build *)",
-      "Bash(Get-ChildItem *)"
+      "Bash(Get-ChildItem *)",
+      "Bash(Test-Path \"C:\\\\Users\\\\hp\\\\OneDrive\\\\Documents\\\\github\\\\cvpilotai\\\\app\\\\\\(main\\)\\\\resumes\\\\[id]\\\\\" -PathType Container *)",
+      "Bash(edit\")"
     ]
   }
 }

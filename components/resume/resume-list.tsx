@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { ExportButton } from '@/components/resume/export-button';
+import { DeleteResumeButton } from '@/components/resume/delete-resume-button';
 import { useResumes, type ResumeListItemJSON } from '@/hooks/use-resumes';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -46,7 +47,6 @@ function ResumeCardSkeleton() {
 
 function ResumeCard({ item }: { item: ResumeListItemJSON }) {
   const thumbnail = item.template.thumbnail ?? '/resume-templates/classic.jpg';
-  const templateSlug = item.template.slug;
 
   return (
     <Card className="group overflow-hidden transition-shadow hover:shadow-md">
@@ -91,10 +91,13 @@ function ResumeCard({ item }: { item: ResumeListItemJSON }) {
             {/* Download PDF — spinner while Playwright generates the PDF */}
             <ExportButton resumeId={item.id} resumeTitle={item.title} />
 
-            {/* Edit — links back to the template editor (future: load from DB) */}
+            {/* Edit — loads DB resume into the Zustand-powered editor */}
             <Button variant="ghost" size="sm" className="gap-1.5" asChild>
-              <Link href={`/resumes/create-resume/${templateSlug}`}>Edit</Link>
+              <Link href={`/resumes/${item.id}/edit`}>Edit</Link>
             </Button>
+
+            {/* Delete — AlertDialog confirmation before hard-delete */}
+            <DeleteResumeButton resumeId={item.id} resumeTitle={item.title} />
           </div>
         </div>
       </CardContent>

@@ -177,6 +177,19 @@ type ResumeStore = {
     updates: Partial<Omit<Certification, 'id'>>
   ) => void;
   removeCertification: (id: string) => void;
+
+  // Edit lifecycle
+  /**
+   * Replace the entire store state with a resume loaded from the database.
+   * Called on mount of the edit page to pre-populate the editor.
+   */
+  hydrateResume: (resume: Resume) => void;
+  /**
+   * Reset the store to the static INITIAL_RESUME (id: "preview-draft").
+   * Called on unmount of the edit page so create-resume works correctly
+   * after navigating back from an edit session.
+   */
+  resetResume: () => void;
 };
 
 // ─── Store ───────────────────────────────────────────────────────────────────
@@ -330,4 +343,8 @@ export const useResumeStore = create<ResumeStore>((set) => ({
         certifications: s.resume.certifications.filter((c) => c.id !== id),
       },
     })),
+
+  // ── Edit lifecycle ──
+  hydrateResume: (resume) => set({ resume }),
+  resetResume: () => set({ resume: INITIAL_RESUME }),
 }));

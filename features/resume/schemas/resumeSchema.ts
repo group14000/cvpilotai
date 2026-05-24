@@ -97,7 +97,26 @@ export const createResumeSchema = z.object({
   data: resumeDataSchema,
 });
 
+// ─── Layer 3b: PATCH /api/v1/resumes/[id] request body ───────────────────────
+
+export const updateResumeSchema = z.object({
+  /**
+   * Optional title update. If omitted, the service preserves the existing title.
+   * Forward-compatible: when a rename UI is added, the client just starts sending this.
+   */
+  title: z
+    .string()
+    .min(1, 'Title must not be empty')
+    .max(255)
+    .trim()
+    .optional(),
+
+  /** Full resume content — replaces the stored Resume.data Json. */
+  data: resumeDataSchema,
+});
+
 // ─── Exported types ───────────────────────────────────────────────────────────
 
 export type ResumeData = z.infer<typeof resumeDataSchema>;
 export type CreateResumeInput = z.infer<typeof createResumeSchema>;
+export type UpdateResumeInput = z.infer<typeof updateResumeSchema>;

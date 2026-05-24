@@ -1,9 +1,13 @@
 import type { Resume as PrismaResume } from '@/generated/prisma/client';
-import type { ResumeData, CreateResumeInput } from '../schemas/resumeSchema';
+import type {
+  ResumeData,
+  CreateResumeInput,
+  UpdateResumeInput,
+} from '../schemas/resumeSchema';
 
 // ─── Re-exports ───────────────────────────────────────────────────────────────
 
-export type { ResumeData, CreateResumeInput };
+export type { ResumeData, CreateResumeInput, UpdateResumeInput };
 
 /** The raw Prisma Resume row (DB model). */
 export type DbResume = PrismaResume;
@@ -39,6 +43,15 @@ export type ResumeCreatedResponse = {
   slug: string;
   templateId: string;
   createdAt: Date;
+};
+
+/** Resume metadata returned in the API 200 response after a PATCH update. */
+export type ResumeUpdatedResponse = {
+  id: string;
+  title: string;
+  slug: string;
+  templateId: string;
+  updatedAt: Date;
 };
 
 /**
