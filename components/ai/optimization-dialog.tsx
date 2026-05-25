@@ -167,7 +167,7 @@ export function OptimizationDialog({ resumeId, open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="flex max-h-[90vh] w-full max-w-4xl flex-col gap-0 overflow-hidden p-0">
+      <DialogContent className="flex max-h-[90vh] w-full max-w-6xl flex-col gap-0 overflow-hidden p-0">
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <DialogHeader className="border-border shrink-0 border-b px-6 py-4">
           <DialogTitle className="flex items-center gap-2">

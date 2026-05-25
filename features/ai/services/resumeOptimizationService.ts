@@ -28,6 +28,72 @@ import type { DescriptionBlock } from '@/types/resume';
 
 const AI_MODEL = 'nvidia/nemotron-3-super-120b-a12b:free' as const;
 
+// ─── JSON extraction helper ───────────────────────────────────────────────────
+//
+// Many free-tier models on OpenRouter (including nvidia/nemotron) append prose
+// after the JSON object despite `responseFormat: json_object`. They may also
+// wrap the JSON in markdown code fences or add a preamble.
+//
+// Simple regex stripping only handles code fences. This function uses a
+// bracket-counting parser that is string-aware (respects `"` and `\` escapes)
+// to extract EXACTLY the first complete `{...}` object from any surrounding
+// text, regardless of what the model puts before or after it.
+//
+// Scenarios handled:
+//   ✓  Pure JSON response                 → returned as-is
+//   ✓  ```json { ... } ```               → code fence stripped, JSON extracted
+//   ✓  "Here is the result:\n{ ... }"    → preamble stripped
+//   ✓  "{ ... }\n\nNote: I focused on…"  → trailing prose stripped
+//   ✗  Truncated JSON (no closing `}`)   → returns truncated string; JSON.parse
+//      will still fail, triggering AiParseError (caught upstream)
+
+function extractJsonObject(raw: string): string {
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escape = false;
+
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+
+    // Handle backslash escapes inside strings
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (ch === '\\' && inString) {
+      escape = true;
+      continue;
+    }
+
+    // Toggle string mode on unescaped double-quotes
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    // Ignore everything inside string values
+    if (inString) continue;
+
+    if (ch === '{') {
+      if (depth === 0) start = i; // mark where the root object begins
+      depth++;
+    } else if (ch === '}') {
+      depth--;
+      if (depth === 0 && start !== -1) {
+        return raw.slice(start, i + 1); // found a complete JSON object
+      }
+    }
+  }
+
+  // JSON is truncated (no matching closing `}`) — return from the opening brace
+  // so JSON.parse fails with a useful length in the error log, not silently.
+  if (start !== -1) return raw.slice(start);
+
+  // No `{` at all — return raw; JSON.parse will fail and we log it.
+  return raw;
+}
+
 // ─── Main service function ────────────────────────────────────────────────────
 
 /**
@@ -103,7 +169,8 @@ export async function optimizeResume(
   // ── Step 5: Call OpenRouter ───────────────────────────────────────────────
   // stream: false — non-streaming MVP decision (see plan section 7)
   // temperature: 0.3 — low = deterministic, less hallucination
-  // maxTokens: 3000 — sufficient for full optimized resume response
+  // maxTokens: 8192 — raised from 3000 after nvidia/nemotron used ~2746 tokens
+  //   and the JSON was truncated mid-object, causing JSON.parse failures.
   // responseFormat: json_object — instructs model to output valid JSON
   //
   // SDK type: SendChatCompletionRequestRequest wraps all chat params inside
@@ -121,7 +188,7 @@ export async function optimizeResume(
           { role: 'user' as const, content: userPrompt },
         ],
         stream: false,
-        maxTokens: 3000,
+        maxTokens: 8192,
         temperature: 0.3,
         responseFormat: { type: 'json_object' as const },
       },
@@ -193,30 +260,61 @@ export async function optimizeResume(
     throw new AiEmptyResponseError();
   }
 
+  // Extract the JSON object from the model response.
+  //
+  // extractJsonObject() uses bracket-counting to locate and return the first
+  // complete `{...}` object, regardless of what the model puts before or after
+  // it (preamble text, markdown code fences, trailing notes). This handles the
+  // three failure modes observed with nvidia/nemotron and similar free models:
+  //
+  //   1. JSON wrapped in ```json ... ``` fences
+  //   2. Prose preamble: "Here is the JSON:\n{...}"
+  //   3. Trailing prose: "{...}\n\nNote: I focused on..."
+  //
+  // Truncated JSON (no matching `}`) still fails at JSON.parse below — that
+  // is caught and logged as 'json_parse_error'.
+  const cleanContent = extractJsonObject(rawContent.trim());
+
   let parsedJson: unknown;
   try {
-    parsedJson = JSON.parse(rawContent);
+    parsedJson = JSON.parse(cleanContent);
   } catch {
-    // Log content LENGTH not content (content could contain injected text)
+    // Log start + end of content for diagnosis (not the full body — structured
+    // AI output is not PII, but we still keep logging minimal to stay hygienic).
+    const preview = cleanContent.slice(0, 150).replace(/\s+/g, ' ');
+    const tailHint = cleanContent.slice(-80).replace(/\s+/g, ' ');
     console.log(
       '[AI:usage]',
       JSON.stringify({
         ...usageLog,
         success: false,
         failureReason: 'json_parse_error',
-        rawContentLength: rawContent.length,
+        rawContentLength: cleanContent.length,
+        contentHead: preview,
+        contentTail: tailHint, // ← tail reveals truncation or trailing prose
       })
     );
-    throw new AiParseError(rawContent.length);
+    throw new AiParseError(cleanContent.length);
   }
 
   // ── Step 8: Zod validation ────────────────────────────────────────────────
+  // The schema uses z.preprocess() + .catch() to handle common model variations:
+  //   - enum fields: case-insensitive normalisation (seniorityLevel, proficiency)
+  //   - atsScore: float or string → integer via Math.round
+  //   - description: string / string[] → [{id, content}] via normaliseDescriptionField
+  //   - arrays: .catch([]) so a missing/malformed array doesn't fail the whole response
   const validated = aiOptimizationResponseSchema.safeParse(parsedJson);
   if (!validated.success) {
+    // Log all Zod issues + the top-level keys of the parsed response for diagnosis.
+    // Top-level keys reveal shape mismatches (e.g. model wrapped in extra object).
     const issuesSummary = validated.error.issues
-      .slice(0, 5)
+      .slice(0, 10)
       .map((i) => `${i.path.join('.')}: ${i.message}`)
       .join('; ');
+    const topLevelKeys =
+      parsedJson && typeof parsedJson === 'object'
+        ? Object.keys(parsedJson as Record<string, unknown>).join(', ')
+        : typeof parsedJson;
     console.log(
       '[AI:usage]',
       JSON.stringify({
@@ -224,6 +322,7 @@ export async function optimizeResume(
         success: false,
         failureReason: 'zod_validation_error',
         issuesSummary,
+        topLevelKeys,
       })
     );
     throw new AiValidationError(issuesSummary);
