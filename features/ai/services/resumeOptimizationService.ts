@@ -252,7 +252,7 @@ export async function optimizeResume(
       : null;
 
   if (!rawContent || rawContent.trim().length === 0) {
-    console.log(
+    console.error(
       '[AI:usage]',
       JSON.stringify({
         ...usageLog,
@@ -286,7 +286,7 @@ export async function optimizeResume(
     // AI output is not PII, but we still keep logging minimal to stay hygienic).
     const preview = cleanContent.slice(0, 150).replace(/\s+/g, ' ');
     const tailHint = cleanContent.slice(-80).replace(/\s+/g, ' ');
-    console.log(
+    console.error(
       '[AI:usage]',
       JSON.stringify({
         ...usageLog,
@@ -294,7 +294,7 @@ export async function optimizeResume(
         failureReason: 'json_parse_error',
         rawContentLength: cleanContent.length,
         contentHead: preview,
-        contentTail: tailHint, // ← tail reveals truncation or trailing prose
+        contentTail: tailHint,
       })
     );
     throw new AiParseError(cleanContent.length);
@@ -318,7 +318,7 @@ export async function optimizeResume(
       parsedJson && typeof parsedJson === 'object'
         ? Object.keys(parsedJson as Record<string, unknown>).join(', ')
         : typeof parsedJson;
-    console.log(
+    console.error(
       '[AI:usage]',
       JSON.stringify({
         ...usageLog,
@@ -330,8 +330,6 @@ export async function optimizeResume(
     );
     throw new AiValidationError(issuesSummary);
   }
-
-  console.log('[AI:usage]', JSON.stringify({ ...usageLog, success: true }));
 
   const aiResult: AiOptimizationResponse = validated.data;
 

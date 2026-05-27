@@ -57,18 +57,13 @@ async function main() {
   });
   const prisma = new PrismaClient({ adapter });
 
-  console.log('🌱 Seeding ResumeTemplate table...\n');
-
   for (const tpl of TEMPLATES) {
-    const record = await prisma.resumeTemplate.upsert({
+    await prisma.resumeTemplate.upsert({
       where: { slug: tpl.slug },
       update: { name: tpl.name, thumbnail: tpl.thumbnail },
       create: { slug: tpl.slug, name: tpl.name, thumbnail: tpl.thumbnail },
     });
-    console.log(`  ✓  ${record.slug.padEnd(16)}  id: ${record.id}`);
   }
-
-  console.log('\n✅ Seeding complete.');
   await prisma.$disconnect();
 }
 

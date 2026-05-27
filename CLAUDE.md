@@ -52,6 +52,7 @@
    CLERK_
    AWS_
    UPSTASH_
+   OPENROUTER_
    ```
 
 ---
@@ -168,6 +169,7 @@
    prisma/
      schema.prisma
      migrations/
+     seed.ts
    ```
 2. Separate:
    - database logic
@@ -264,7 +266,7 @@
    - upload APIs
 3. Store rate limiting utilities inside:
    ```txt
-   src/lib/ratelimit/
+   lib/ratelimit/
    ```
 4. Use IP-based or user-based rate limiting depending on the endpoint.
 5. Return proper `429 Too Many Requests` responses.
@@ -319,25 +321,49 @@ Error:
 ## AI Feature Rules
 
 1. Keep AI prompts separated from route handlers.
-2. Store prompts inside dedicated modules.
-3. Validate AI responses before saving.
+2. Store prompts inside dedicated modules (`lib/ai/prompts/`).
+3. Validate AI responses before saving — use Zod with `.catch()` fallbacks for resilience.
 4. Implement retries and fallback handling.
-5. Track AI token usage when required.
+5. Track AI token usage when required — use structured `[AI:usage]` console.log.
 6. Never expose raw prompts to the frontend.
-7. AI generation logic must remain server-side.
+7. AI generation logic must remain server-side (`features/ai/services/`).
+8. Sanitize all AI input with `sanitizeJobDescription()` and output with `sanitizeAiTextOutput()`.
+9. Use 4-layer prompt injection defense: sanitization → XML delimiter isolation → system prompt reinforcement → Zod schema validation.
+10. Never auto-retry AI calls — free-tier failures last minutes; let users retry manually.
+11. All AI errors (AiEmptyResponseError, AiParseError, AiValidationError) must be typed and mapped to correct HTTP status codes in the route handler.
+12. Use `extractJsonObject()` bracket-counting parser to extract JSON from model responses that include preamble or trailing prose.
 
 ---
 
 ## Logging Rules
 
-1. Log important backend events.
-2. Never log:
+1. **Never use `console.log()`** — it is banned across the entire codebase (production read/write cost + security risk).
+2. Use `console.error()` for failures and `console.warn()` for non-fatal anomalies only.
+3. Never log:
    - secrets
    - tokens
    - passwords
    - sensitive user data
-3. Use structured logging.
-4. Separate dev logs from production logs.
+4. Use structured logging — always `console.error('[namespace]', JSON.stringify({...}))`.
+5. Established log namespaces (all use `console.error` or `console.warn`):
+   - `[AI:usage]` — AI call failures with token counts, duration, and failure reason (`console.error`)
+   - `[AI:sdk-error]` — OpenRouter SDK errors with errorClass and statusCode (`console.error`)
+   - `[AI:reconciliation]` — dropped hallucinated IDs after ID reconciliation (`console.warn`)
+   - `[EditorErrorBoundary]` — React render errors caught in the editor (`console.error`)
+6. Separate dev logs from production logs.
+
+---
+
+## HTTP Client Rules
+
+1. Use **Axios** for all API calls from frontend hooks — never raw `fetch()`.
+2. Always type both success and error response shapes:
+   ```ts
+   type SuccessResponse = { success: true; data: {...}; message: string }
+   type ErrorResponse   = { success: false; error: string }
+   ```
+3. Extract errors with `isAxiosError<ErrorResponse>(error)` + `error.response?.data?.error`.
+4. Use `responseType: 'arraybuffer'` for binary downloads (PDF export), then decode errors with `TextDecoder`.
 
 ---
 
@@ -416,22 +442,25 @@ Current Project Workflow:
 Preferred Structure:
 
 ```txt
-src/
-  features/
-    resume/
-      actions/
-      api/
-      components/
-      services/
-      schemas/
-      types/
-      utils/
+features/
+  resume/
+    services/
+    schemas/
+    types/
+    utils/
+  ai/
+    services/
+    schemas/
+    types/
+  user/
+    services/
+    schemas/
 
-  lib/
-    prisma/
-    ratelimit/
-    auth/
-    ai/
+lib/
+  prisma/
+  ratelimit/
+  ai/
+    prompts/
 ```
 
 ---
@@ -450,11 +479,13 @@ src/
    - AI history
    - template versioning
    - resume customization
-6. Keep AI prompts reusable and version-controlled.
+6. Keep AI prompts reusable and version-controlled (`lib/ai/prompts/promptVersion.ts`).
 7. Optimize expensive AI generation APIs.
 8. Cache reusable AI responses where applicable.
 9. Track resume generation history.
 10. Design for future multi-template support.
+
+---
 
 # Project Folder Structure
 
@@ -484,17 +515,32 @@ src/
 │   │   ├── dashboard/
 │   │   │   └── page.tsx                        # Dashboard page
 │   │   └── resumes/
-│   │       ├── page.tsx                        # Resumes listing page
+│   │       ├── page.tsx                        # Resumes listing page (uses ResumeList)
 │   │       ├── new/
 │   │       │   └── page.tsx                    # Template picker (uses ResumeTemplateCard)
+│   │       ├── [id]/
+│   │       │   └── edit/
+│   │       │       └── page.tsx                # Edit page: server component → EditResumeClient
 │   │       └── create-resume/
 │   │           └── [slug]/
-│   │               └── page.tsx                # Resume editor: form (left) + preview (right)
+│   │               └── page.tsx                # New resume editor: form (left) + preview (right)
+│   ├── (print)/                                # Print layout group (no sidebar/header)
+│   │   └── resume/
+│   │       └── [id]/
+│   │           └── page.tsx                    # Print/PDF render target (used by Playwright export)
 │   ├── api/
 │   │   └── v1/                                 # API versioning
-│   │       └── user/
-│   │           └── sync/
-│   │               └── route.ts                # User synchronization endpoint (Clerk → DB)
+│   │       ├── user/
+│   │       │   └── sync/
+│   │       │       └── route.ts                # POST — Clerk → DB user sync (called on sign-in)
+│   │       └── resumes/
+│   │           ├── route.ts                    # GET (list), POST (create)
+│   │           └── [id]/
+│   │               ├── route.ts                # GET (single), PATCH (update), DELETE
+│   │               ├── export/
+│   │               │   └── route.ts            # GET — Playwright PDF export
+│   │               └── optimize/
+│   │                   └── route.ts            # POST — AI resume optimization (OpenRouter)
 │   ├── providers.tsx                           # Root providers: SidebarProvider, QueryClient, Theme
 │   ├── layout.tsx                              # Root layout: ClerkProvider, ThemeProvider, Providers
 │   ├── page.tsx                                # Home / landing page
@@ -503,43 +549,43 @@ src/
 │
 ├── components/                                 # Reusable UI components
 │   ├── ui/                                     # Shadcn/ui component library (50+ components)
-│   │   ├── accordion.tsx
-│   │   ├── button.tsx
-│   │   ├── card.tsx
-│   │   ├── input.tsx
-│   │   ├── label.tsx
-│   │   ├── scroll-area.tsx
-│   │   ├── separator.tsx
-│   │   ├── sidebar.tsx
-│   │   ├── textarea.tsx
-│   │   └── ... (50+ components)
+│   │   ├── editor-error-boundary.tsx           # React class error boundary for editor panels
+│   │   └── ... (accordion, button, card, dialog, skeleton, tabs, etc.)
 │   ├── resume/                                 # Resume editor UI components
 │   │   ├── resume-form.tsx                     # Full section-based editor form (Zustand-connected)
 │   │   ├── resume-preview.tsx                  # A4 live preview wrapper (reads from store)
-│   │   └── template-card.tsx                   # Template picker card (ShadCN Card + Next Image)
+│   │   ├── resume-list.tsx                     # Resume cards grid on /resumes page
+│   │   ├── template-card.tsx                   # Template picker card (ShadCN Card + Next Image)
+│   │   ├── edit-resume-client.tsx              # Client wrapper: hydrates store + renders two-panel editor
+│   │   ├── save-resume-button.tsx              # Save button for create-resume page (POST mutation)
+│   │   ├── update-resume-button.tsx            # Save button for edit page (PATCH mutation)
+│   │   ├── delete-resume-button.tsx            # Delete button with confirmation dialog (DELETE mutation)
+│   │   └── export-button.tsx                   # PDF export button (GET /export, arraybuffer download)
+│   ├── ai/                                     # AI optimization UI components
+│   │   ├── optimize-resume-button.tsx          # Header trigger: opens dialog, shows "ready" badge
+│   │   ├── optimization-dialog.tsx             # Full dialog: idle → loading → results states
+│   │   ├── optimization-results-panel.tsx      # Tabbed view: Suggestions + Analysis tabs
+│   │   ├── section-diff-card.tsx               # Per-section original vs. optimized diff with Accept/Reject
+│   │   ├── analysis-panel.tsx                  # ATS score ring, keywords, improvement suggestions
+│   │   └── keyword-badge.tsx                   # Pill badge (matched=green, missing=orange, neutral=gray)
 │   ├── templates/                              # Resume template implementations
 │   │   ├── index.ts                            # Registry: TemplateComponent type + TEMPLATE_COMPONENTS map
-│   │   ├── classic/
-│   │   │   └── template.tsx                    # Classic: two-column [160px_1fr] serif layout
-│   │   ├── traditional/
-│   │   │   └── template.tsx                    # Traditional: full-width bold uppercase section headers
-│   │   ├── professional/
-│   │   │   └── template.tsx                    # Professional: indigo sidebar + main content split
-│   │   ├── prime-ats/
-│   │   │   └── template.tsx                    # Prime ATS: ATS-safe, no columns, list-disc bullets
-│   │   ├── clean/
-│   │   │   └── template.tsx                    # Clean: emerald accents, vertical timeline lines
-│   │   └── precision-ats/
-│   │       └── template.tsx                    # Precision ATS: skills-highlight block, ATS-optimized
+│   │   ├── classic/template.tsx                # Classic: two-column [160px_1fr] serif layout
+│   │   ├── traditional/template.tsx            # Traditional: full-width bold uppercase section headers
+│   │   ├── professional/template.tsx           # Professional: indigo sidebar + main content split
+│   │   ├── prime-ats/template.tsx              # Prime ATS: ATS-safe, no columns, list-disc bullets
+│   │   ├── clean/template.tsx                  # Clean: emerald accents, vertical timeline lines
+│   │   └── precision-ats/template.tsx          # Precision ATS: skills-highlight block, ATS-optimized
 │   ├── constants/
 │   │   ├── resume-templates.ts                 # ResumeTemplate[] array (id, name, description, image)
 │   │   └── sidebar-arrays.ts                   # SidebarItem[] for main navigation
 │   ├── main-sidebar.tsx                        # App sidebar: nav links + Clerk user footer + SignOut
 │   ├── main-header.tsx                         # Top header: SidebarTrigger + Separator + title
+│   ├── ThemeToggle.tsx                         # Dark/light mode toggle button
 │   └── theme-provider.tsx                      # next-themes ThemeProvider wrapper
 │
 ├── store/                                      # Zustand client-side state
-│   └── resume-store.ts                         # useResumeStore: resume state + all CRUD actions
+│   └── resume-store.ts                         # useResumeStore: resume state + CRUD actions + AI slice
 │                                               # (static initial ID "preview-draft" avoids hydration mismatch)
 │
 ├── types/                                      # Global TypeScript types
@@ -547,28 +593,49 @@ src/
 │                                               # Project, Certification, DescriptionBlock
 │
 ├── features/                                   # Feature-based backend modules
-│   └── user/                                   # User feature
-│       ├── services/
-│       │   └── userService.ts                  # Business logic for user operations
-│       └── schemas/
-│           └── userSchema.ts                   # Zod schemas for user validation
+│   ├── user/
+│   │   ├── services/userService.ts             # DB user sync logic
+│   │   └── schemas/userSchema.ts               # Zod user validation
+│   ├── resume/
+│   │   ├── services/resumeService.ts           # CRUD: getResumesByUserId, getResumeById, create, update, delete
+│   │   ├── services/exportService.ts           # Playwright PDF generation (headless Chromium)
+│   │   ├── schemas/resumeSchema.ts             # Zod: resumeDataSchema, updateResumeInputSchema, etc.
+│   │   ├── types/index.ts                      # ResumeUpdatedResponse and other shared types
+│   │   └── utils/slugUtils.ts                  # generateUniqueResumeSlug()
+│   └── ai/
+│       ├── services/resumeOptimizationService.ts  # 11-step AI pipeline: sanitize → prompt → call → parse → validate
+│       ├── schemas/aiRequestSchema.ts             # Zod: POST body (jobDescription: min 50, max 10000)
+│       ├── schemas/aiResponseSchema.ts            # Zod: AI JSON contract with preprocessors + .catch() fallbacks
+│       └── types/index.ts                         # PendingAiOptimization, SectionAcceptanceMap, AiOptimizationState,
+│                                                  # AiEmptyResponseError, AiParseError, AiValidationError
 │
 ├── lib/                                        # Shared utilities and libraries
 │   ├── prisma/
-│   │   └── client.ts                           # Centralized Prisma client instance
+│   │   └── client.ts                           # Centralized Prisma client instance (global singleton guard)
 │   ├── ratelimit/
 │   │   ├── client.ts                           # Redis client for rate limiting
-│   │   └── limiters.ts                         # Reusable rate limiter configurations
+│   │   └── limiters.ts                         # 7 reusable rate limiters (CRUD + export + AI + sync)
+│   ├── ai/
+│   │   ├── client.ts                           # OpenRouter singleton (server-only, validates OPENROUTER_API_KEY)
+│   │   ├── sanitize.ts                         # sanitizeJobDescription() + sanitizeAiTextOutput()
+│   │   └── prompts/
+│   │       ├── promptVersion.ts                # RESUME_OPTIMIZATION_PROMPT_VERSION = 'v1'
+│   │       └── resumeOptimizationPrompt.ts     # buildSystemPrompt() + buildUserPrompt() + buildCompactResume()
 │   └── utils.ts                                # General utility functions (cn, etc.)
 │
-├── hooks/                                      # React custom hooks
-│   └── use-mobile.ts                           # Mobile detection hook
+├── hooks/                                      # TanStack Query + custom React hooks
+│   ├── use-resumes.ts                          # GET /api/v1/resumes → ResumeListItemJSON[]
+│   ├── use-resume.ts                           # GET /api/v1/resumes/[id] → single resume
+│   ├── use-create-resume.ts                    # POST /api/v1/resumes → create + redirect
+│   ├── use-update-resume.ts                    # PATCH /api/v1/resumes/[id] → save changes
+│   ├── use-delete-resume.ts                    # DELETE /api/v1/resumes/[id] → delete + navigate
+│   ├── use-optimize-resume.ts                  # POST /api/v1/resumes/[id]/optimize → AI optimization
+│   └── use-mobile.ts                           # Breakpoint detection hook
 │
 ├── prisma/                                     # Prisma ORM configuration
-│   ├── schema.prisma                           # Database schema definition
-│   └── migrations/
-│       └── 20260520103548_update_resume_slug_uniqueness/
-│           └── migration.sql                   # @@unique([userId, slug]) on Resume
+│   ├── schema.prisma                           # Database schema (User, Resume, ResumeTemplate)
+│   ├── seed.ts                                 # Seeds ResumeTemplate records
+│   └── migrations/                             # All applied migrations
 │
 ├── generated/                                  # Auto-generated files (never edit manually)
 │   └── prisma/                                 # Generated Prisma client (output of prisma generate)
@@ -589,6 +656,8 @@ src/
 └── .claude/                                    # Claude Code project settings
     └── settings.local.json                     # Local Claude Code configuration
 ```
+
+---
 
 ## Key Architectural Patterns
 
@@ -613,6 +682,7 @@ Key rules:
 - A4 sizing is always `w-[794px] min-h-[1123px]` (210mm × 297mm at 96 dpi)
 - Store initial ID is **always the static string `"preview-draft"`** to prevent hydration mismatch
 - `crypto.randomUUID()` is only used inside action callbacks (runs client-side only)
+- Both `<ResumeForm />` and `<ResumePreview />` are wrapped in `<EditorErrorBoundary>` — a crash in one panel does NOT kill the other
 
 ### Template Registry Pattern
 
@@ -641,6 +711,90 @@ Adding a new template requires only:
 
 Description blocks (bullets) are stored as `DescriptionBlock[]` in the store but edited as a plain textarea (one line = one bullet). Parsed on `onChange`.
 
+### AI Optimization Architecture
+
+The AI feature is a non-destructive overlay on top of the live resume:
+
+```
+POST /api/v1/resumes/[id]/optimize
+  → auth → rate limit → validate → optimizeResume() service
+  → sanitize JD → fetch resume → build prompts → OpenRouter call
+  → extractJsonObject() → JSON.parse → Zod validate → sanitize output
+  → ID reconciliation → return PendingAiOptimization
+
+Client side:
+  useOptimizeResume hook (onSuccess) → setAiOptimizationResult(result)
+  → OptimizationDialog shows diff view
+  → acceptAiSection() / rejectAiSection() per section
+  → applyAllAcceptedAiChanges() → writes to live resume state
+  → useUpdateResume() → PATCH /api/v1/resumes/[id] → DB saved
+```
+
+Key rules:
+
+- The AI result is **never written to the DB directly** — it flows through Zustand accept/reject first
+- `applyAllAcceptedAiChanges()` calls existing store actions (`updateSummary`, `updateExperience`, `addSkill`, etc.) — no new write paths
+- The AI slice resets to `null` on `clearAiOptimization()` — navigating away safely discards pending suggestions
+- All AI model output is sanitized with `sanitizeAiTextOutput()` before it enters the store
+
+### Zustand Store Structure
+
+`store/resume-store.ts` exports `useResumeStore` with two slices:
+
+**Resume slice** — the live editing state:
+
+- `resume: Resume` — current editor state
+- `hydrateResume(resume)` — loads DB data on edit page mount
+- `resetResume()` — restores `INITIAL_RESUME` on edit page unmount
+- `updatePersonalInfo`, `updateSummary`, `addExperience`, `updateExperience`, `removeExperience` (and equivalents for Education, Projects, Skills, Certifications)
+
+**AI slice** — non-destructive optimization overlay:
+
+- `aiOptimization: AiOptimizationState` — `null` when idle, `{ status, pending, sectionAcceptance }` otherwise
+- `setAiOptimizationLoading()` / `setAiOptimizationResult()` / `setAiOptimizationError()` / `clearAiOptimization()`
+- `acceptAiSection(section, itemId?)` / `rejectAiSection(section, itemId?)`
+- `applyAllAcceptedAiChanges()` — reads accepted items, applies to live resume, then clears
+
+### TanStack Query Hook Pattern
+
+All 6 data hooks follow the same pattern (mirrors `use-update-resume.ts`):
+
+```ts
+// 1. Type the success + error response shapes
+type XxxSuccess = { success: true; data: { ... }; message: string }
+type XxxError   = { success: false; error: string }
+
+// 2. Fetcher using axios with typed generic
+async function fetchXxx() {
+  try {
+    const { data } = await axios.get<XxxSuccess>('/api/v1/...');
+    return data.data.xxx;
+  } catch (error) {
+    if (isAxiosError<XxxError>(error)) throw new Error(error.response?.data?.error ?? 'Fallback');
+    throw error;
+  }
+}
+
+// 3. useQuery or useMutation with queryKey and cache invalidation
+export function useXxx() {
+  return useQuery({ queryKey: ['xxx'], queryFn: fetchXxx });
+}
+```
+
+### Error Boundary Pattern
+
+`components/ui/editor-error-boundary.tsx` exports `EditorErrorBoundary` — a React class component. Use it to isolate any section of the UI that renders complex user data:
+
+```tsx
+<EditorErrorBoundary label="Resume Preview">
+  <ResumePreview slug={slug} />
+</EditorErrorBoundary>
+```
+
+- Each boundary is independent — a crash in one doesn't affect siblings
+- Logs structured JSON to console with `[EditorErrorBoundary]` prefix
+- Shows a "Try again" fallback that resets the boundary state without a full page reload
+
 ### Backend-First Architecture (for API/DB features)
 
 - Database schema defined first in `prisma/schema.prisma`
@@ -648,13 +802,30 @@ Description blocks (bullets) are stored as `DescriptionBlock[]` in the store but
 - Validation schemas in `features/*/schemas/` (using Zod)
 - Thin route handlers in `app/api/`
 
+### API Route Pattern
+
+Every protected route follows this exact order:
+
+```
+1. auth()                          → 401 if missing
+2. aiOptimizeLimiter.limit(userId) → 429 with rate limit headers if exceeded
+3. params validation               → 400 if missing
+4. request.json() → schema.safeParse() → 400 if invalid
+5. resolveDbUser(userId)           → 404 if not synced
+6. service call (business logic)   → typed errors from service
+7. NextResponse.json({ success: true, data, message })
+```
+
 ### Library Organization
 
 Centralized utilities in `lib/`:
 
-- **prisma/client.ts** — Single Prisma client instance
+- **prisma/client.ts** — Single Prisma client instance (global singleton guard for hot-reload)
 - **ratelimit/client.ts** — Shared Redis connection
-- **ratelimit/limiters.ts** — Reusable rate limit configurations
+- **ratelimit/limiters.ts** — 7 rate limiters: `resumeCreateLimiter`, `resumeUpdateLimiter`, `resumeDeleteLimiter`, `resumeExportLimiter`, `aiOptimizeLimiter`, `userSyncLimiter`, plus a general one
+- **ai/client.ts** — OpenRouter singleton (server-only; validates `OPENROUTER_API_KEY` at init)
+- **ai/sanitize.ts** — `sanitizeJobDescription()` (input) + `sanitizeAiTextOutput()` (output)
+- **ai/prompts/resumeOptimizationPrompt.ts** — `buildSystemPrompt()` + `buildUserPrompt()` + `buildCompactResume()`
 - **utils.ts** — Helper functions (`cn`, etc.)
 
 ### API Design
@@ -664,32 +835,44 @@ Centralized utilities in `lib/`:
 - Consistent response format with `success` boolean
 - Rate limiting applied before business logic
 - Validation via Zod schemas before database operations
+- All errors from `features/ai/types` (AiEmptyResponseError, AiParseError, AiValidationError) mapped to HTTP codes in route handler
+
+---
 
 ## Technology Stack
 
 - **Framework:** Next.js 16.2.6 (App Router, Turbopack)
-- **State Management:** Zustand (client-side resume editor state)
-- **ORM:** Prisma
+- **State Management:** Zustand 5.x (client-side resume editor + AI optimization overlay)
+- **Server State:** TanStack Query v5 (data fetching, mutations, cache invalidation)
+- **HTTP Client:** Axios (all API calls from hooks — never raw `fetch()`)
+- **ORM:** Prisma 7.x
 - **Database:** PostgreSQL
-- **Authentication:** Clerk
-- **Rate Limiting:** Upstash (Redis + Ratelimit)
-- **UI Components:** Shadcn/ui
-- **Validation:** Zod
+- **Authentication:** Clerk 7.x
+- **Rate Limiting:** Upstash (Redis + Ratelimit) — 7 limiters
+- **AI Provider:** OpenRouter via `@openrouter/sdk` (current model: `nvidia/nemotron-3-super-120b-a12b:free`)
+- **UI Components:** Shadcn/ui (50+ components)
+- **Validation:** Zod v4 (input schemas + AI response schemas with `.catch()` resilience)
 - **Styling:** Tailwind CSS v4
+- **PDF Export:** Playwright (headless Chromium) — runs in `(print)` route group
 - **Package Manager:** PNPM
 - **Deployment:** Docker (docker-compose.yml available)
 
+---
+
 ## Environment Configuration
 
-All environment variables are stored in `.env` (not committed):
+All environment variables are stored in `.env` (not committed). Current required variables:
 
 - `DATABASE_URL` — PostgreSQL connection string
 - `UPSTASH_REDIS_REST_URL` — Redis REST API endpoint
 - `UPSTASH_REDIS_REST_TOKEN` — Redis authentication token
 - `CLERK_SECRET_KEY` — Clerk authentication secret
-- And other service API keys
+- `CLERK_PUBLISHABLE_KEY` — Clerk publishable key
+- `OPENROUTER_API_KEY` — OpenRouter API key for AI optimization
 
 See CLAUDE.md "Rules For Environment Variables" section for detailed env rules.
+
+---
 
 ## Important Notes for Future Development
 
@@ -703,3 +886,10 @@ See CLAUDE.md "Rules For Environment Variables" section for detailed env rules.
 - Template components must **never** use `useResumeStore` directly — always receive `resume` as a prop
 - Do not use ShadCN components inside template files — keep them print/PDF compatible
 - The `public/resume-templates/` image filenames have inconsistent casing (Professional.jpg, Clean.jpg) and a typo (precission-ats.jpg) — these must match exactly what's in `resume-templates.ts`
+- `lib/ai/client.ts` is **server-only** — never add `"use client"` or import it from a client component
+- The AI model constant lives in `features/ai/services/resumeOptimizationService.ts` as `AI_MODEL` — one-line change to switch models
+- AI optimization makes **no DB writes** — it returns `PendingAiOptimization` to the client. DB is updated only when the user clicks "Save Changes" via `useUpdateResume`
+- The `(print)` route group renders resumes without the main sidebar/header — it is the Playwright PDF render target
+- All 6 data-fetching hooks use Axios + typed error shapes — never add a hook using raw `fetch()`
+- `EditorErrorBoundary` must wrap any component that renders complex user-controlled data (templates, form sections)
+- The Zustand AI slice is a non-destructive overlay — `applyAllAcceptedAiChanges()` must always call existing resume update actions, never write directly to `state.resume`
