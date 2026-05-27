@@ -12,7 +12,11 @@
       "Bash(Get-ChildItem *)",
       "Bash(Test-Path \"C:\\\\Users\\\\hp\\\\OneDrive\\\\Documents\\\\github\\\\cvpilotai\\\\app\\\\\\(main\\)\\\\resumes\\\\[id]\\\\\" -PathType Container *)",
       "Bash(edit\")",
-      "Bash(xargs grep -l \"openrouter\\\\|openai\\\\|anthropic\\\\|ai\\\\|llm\")"
+      "Bash(xargs grep -l \"openrouter\\\\|openai\\\\|anthropic\\\\|ai\\\\|llm\")",
+      "Bash(dir -Recurse -Name)",
+      "Bash(Select-String \"features|lib|components|hooks|app/api\")",
+      "Bash(Select-Object Name)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")"
     ]
   }
 }

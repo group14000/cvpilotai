@@ -178,6 +178,9 @@ export async function optimizeResume(
   //
   // SDK errors (OpenRouterError subclasses) are logged here for diagnostics,
   // then re-thrown so the route handler can map them to HTTP responses.
+  // No client-side timeout — free-tier models respond whenever they're ready.
+  // The OpenRouter platform handles upstream timeouts on its end.
+
   let response: Awaited<ReturnType<typeof openRouterClient.chat.send>>;
   try {
     response = await openRouterClient.chat.send({
@@ -376,7 +379,8 @@ export async function optimizeResume(
 
   // ── Step 10: ID reconciliation ────────────────────────────────────────────
   // Verify that every experience id returned by the AI exists in the real resume.
-  // Silently drop any items with non-matching IDs (hallucinated entries).
+  // Drop any items with non-matching IDs (hallucinated entries) and log them so
+  // silent drops are visible in production logs (not a debugging black hole).
   const validExperienceIds = new Set(resume.experiences.map((e) => e.id));
   const reconciled_experiences = sanitizedResult.optimizedExperiences.filter(
     (e) => validExperienceIds.has(e.id)
@@ -386,6 +390,26 @@ export async function optimizeResume(
   const reconciled_projects = sanitizedResult.optimizedProjects.filter((p) =>
     validProjectIds.has(p.id)
   );
+
+  // Log any dropped hallucinated IDs — useful for prompt quality debugging
+  const droppedExperienceIds = sanitizedResult.optimizedExperiences
+    .filter((e) => !validExperienceIds.has(e.id))
+    .map((e) => e.id);
+  const droppedProjectIds = sanitizedResult.optimizedProjects
+    .filter((p) => !validProjectIds.has(p.id))
+    .map((p) => p.id);
+
+  if (droppedExperienceIds.length > 0 || droppedProjectIds.length > 0) {
+    console.warn(
+      '[AI:reconciliation]',
+      JSON.stringify({
+        userId,
+        resumeId,
+        droppedExperienceIds,
+        droppedProjectIds,
+      })
+    );
+  }
 
   // ── Step 11: Convert to store-compatible PendingAiOptimization ────────────
   // Generate proper crypto.randomUUID() ids for all DescriptionBlocks.

@@ -8,6 +8,7 @@ import { ResumeForm } from '@/components/resume/resume-form';
 import { ResumePreview } from '@/components/resume/resume-preview';
 import { UpdateResumeButton } from '@/components/resume/update-resume-button';
 import { OptimizeResumeButton } from '@/components/ai/optimize-resume-button';
+import { EditorErrorBoundary } from '@/components/ui/editor-error-boundary';
 import { useResumeStore } from '@/store/resume-store';
 import { resumeTemplates } from '@/components/constants/resume-templates';
 import type { Resume } from '@/types/resume';
@@ -100,14 +101,18 @@ export function EditResumeClient({ resume, templateSlug }: Props) {
 
       {/* ── Two-panel editor body ─────────────────────────────────────── */}
       <div className="grid min-h-0 flex-1 grid-cols-[380px_1fr]">
-        {/* Left — Form */}
+        {/* Left — Form (error boundary: crashes here don't kill the preview) */}
         <aside className="border-border bg-background h-full overflow-hidden border-r">
-          <ResumeForm />
+          <EditorErrorBoundary label="Resume Form">
+            <ResumeForm />
+          </EditorErrorBoundary>
         </aside>
 
-        {/* Right — Preview */}
+        {/* Right — Preview (error boundary: template crashes don't kill the form) */}
         <main className="bg-muted/50 h-full overflow-auto p-8">
-          <ResumePreview slug={templateSlug} />
+          <EditorErrorBoundary label="Resume Preview">
+            <ResumePreview slug={templateSlug} />
+          </EditorErrorBoundary>
         </main>
       </div>
     </div>
