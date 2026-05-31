@@ -12,4 +12,11 @@
  */
 export const RESUME_OPTIMIZATION_PROMPT_VERSION = 'v1' as const;
 
+/**
+ * Current resume import prompt version.
+ * Increment whenever the import system/user prompt changes in a way that
+ * affects AI output quality or the expected JSON schema.
+ */
+export const RESUME_IMPORT_PROMPT_VERSION = 'v1' as const;
+
 export type PromptVersion = typeof RESUME_OPTIMIZATION_PROMPT_VERSION;

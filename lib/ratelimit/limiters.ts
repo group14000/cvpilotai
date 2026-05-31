@@ -50,6 +50,22 @@ export const resumeDeleteLimiter = new Ratelimit({
   prefix: 'ratelimit:resume:delete',
 });
 
+// 3 AI import requests per hour per user.
+//
+// Reasoning:
+//   - Import involves file parsing + an AI call (double cost vs. optimization).
+//   - Each call: ~4,000–6,000 input tokens + ~2,000 output tokens.
+//   - Legitimate use: users import once per resume, not repeatedly.
+//   - Stricter than aiOptimizeLimiter to protect shared free-tier token budget.
+//   - Sliding window prevents boundary-burst attacks.
+//
+// Redis key prefix: ratelimit:resume:import:<userId>
+export const resumeImportLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(3, '1 h'),
+  prefix: 'ratelimit:resume:import',
+});
+
 // 5 AI optimization requests per hour per user.
 //
 // Reasoning:

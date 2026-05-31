@@ -91,3 +91,41 @@ export class AiValidationError extends Error {
     this.name = 'AiValidationError';
   }
 }
+
+// ─── Import-specific typed error classes ──────────────────────────────────────
+
+/** AI import call returned empty or null content. */
+export class AiImportEmptyResponseError extends Error {
+  constructor() {
+    super('AI import service returned no content');
+    this.name = 'AiImportEmptyResponseError';
+  }
+}
+
+/** AI import response could not be parsed as JSON. */
+export class AiImportParseError extends Error {
+  constructor(contentLength: number) {
+    super(
+      `AI import response could not be parsed as JSON (length: ${contentLength})`
+    );
+    this.name = 'AiImportParseError';
+  }
+}
+
+/** AI import JSON did not match the expected schema after normalization. */
+export class AiImportValidationError extends Error {
+  constructor(issuesSummary: string) {
+    super(`AI import response failed schema validation: ${issuesSummary}`);
+    this.name = 'AiImportValidationError';
+  }
+}
+
+/** Text could not be extracted from the uploaded file. */
+export class ResumeExtractionError extends Error {
+  constructor(format: 'pdf' | 'docx', reason: string) {
+    super(
+      `Could not extract text from ${format.toUpperCase()} file: ${reason}`
+    );
+    this.name = 'ResumeExtractionError';
+  }
+}

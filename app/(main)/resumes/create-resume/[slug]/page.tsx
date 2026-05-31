@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { ResumeForm } from '@/components/resume/resume-form';
 import { ResumePreview } from '@/components/resume/resume-preview';
 import { SaveResumeButton } from '@/components/resume/save-resume-button';
+import { ImportResumeButton } from '@/components/resume/import-resume-button';
 import { resumeTemplates } from '@/components/constants/resume-templates';
 
 export default async function Page({
@@ -46,8 +47,11 @@ export default async function Page({
           {template?.name ?? slug} Template
         </span>
 
-        {/* Right — save action (client component) */}
-        <SaveResumeButton templateSlug={slug} />
+        {/* Right — import + save actions */}
+        <div className="flex items-center gap-2">
+          <ImportResumeButton templateSlug={slug} />
+          <SaveResumeButton templateSlug={slug} />
+        </div>
       </header>
 
       {/* ── Two-panel editor body ─────────────────────────────────────── */}

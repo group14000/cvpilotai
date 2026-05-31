@@ -31,7 +31,7 @@ export function ResumePreview({ slug }: Props) {
      *   overflow-hidden clips anything the template accidentally overflows.
      *   shadow-xl + ring gives the "paper" effect inside the preview panel.
      */
-    <div className="ring-border mx-auto w-[794px] overflow-hidden rounded-sm shadow-xl ring-1">
+    <div className="ring-border mx-auto w-198.5 overflow-hidden rounded-sm shadow-xl ring-1">
       <Template resume={resume} />
     </div>
   );

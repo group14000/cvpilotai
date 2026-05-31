@@ -47,6 +47,43 @@ export function sanitizeJobDescription(raw: string): string {
 }
 
 /**
+ * Sanitize raw text extracted from an uploaded resume file before it is
+ * embedded in an AI import prompt.
+ *
+ * Same defensive transforms as sanitizeJobDescription plus a hard-truncation
+ * at 15,000 characters (covers even verbose 3-page CVs while capping token cost).
+ *
+ * Applied BEFORE the text is wrapped in <resume_text> XML delimiters.
+ */
+export function sanitizeResumeText(raw: string): string {
+  let text = raw;
+
+  // Strip all HTML tags
+  text = text.replace(/<[^>]*>/g, ' ');
+
+  // Remove null bytes
+  text = text.replace(/\x00/g, '');
+
+  // Remove control characters except tab, newline, carriage return
+  // eslint-disable-next-line no-control-regex
+  text = text.replace(/[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+
+  // Remove Unicode direction-override characters (bidirectional injection)
+  text = text.replace(/[‪-‮⁦-⁩]/g, '');
+
+  // Normalize excessive newlines
+  text = text.replace(/\n{3,}/g, '\n\n');
+
+  // Collapse multiple consecutive spaces
+  text = text.replace(/ {2,}/g, ' ');
+
+  // Trim and hard-truncate to 15,000 characters
+  text = text.trim().slice(0, 15000);
+
+  return text;
+}
+
+/**
  * Sanitize a string from AI output before it reaches the Zustand store or UI.
  *
  * Defense-in-depth: even if the AI returns unexpected content, this strips:
