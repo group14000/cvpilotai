@@ -535,7 +535,8 @@ lib/
 │   │       │       └── route.ts                # POST — Clerk → DB user sync (called on sign-in)
 │   │       └── resumes/
 │   │           ├── route.ts                    # GET (list), POST (create)
-│   │           └── [id]/
+│   │           ├── import/
+│   │           │   └── route.ts                # POST — AI resume import (PDF/DOCX → normalized Resume)
 │   │               ├── route.ts                # GET (single), PATCH (update), DELETE
 │   │               ├── export/
 │   │               │   └── route.ts            # GET — Playwright PDF export
@@ -560,7 +561,9 @@ lib/
 │   │   ├── save-resume-button.tsx              # Save button for create-resume page (POST mutation)
 │   │   ├── update-resume-button.tsx            # Save button for edit page (PATCH mutation)
 │   │   ├── delete-resume-button.tsx            # Delete button with confirmation dialog (DELETE mutation)
-│   │   └── export-button.tsx                   # PDF export button (GET /export, arraybuffer download)
+│   │   ├── export-button.tsx                   # PDF export button (GET /export, arraybuffer download)
+│   │   ├── import-resume-button.tsx          # Trigger button: opens ImportResumeDialog
+│   │   └── import-resume-dialog.tsx          # 4-state dialog: idle → loading → success → error
 │   ├── ai/                                     # AI optimization UI components
 │   │   ├── optimize-resume-button.tsx          # Header trigger: opens dialog, shows "ready" badge
 │   │   ├── optimization-dialog.tsx             # Full dialog: idle → loading → results states
@@ -599,15 +602,25 @@ lib/
 │   ├── resume/
 │   │   ├── services/resumeService.ts           # CRUD: getResumesByUserId, getResumeById, create, update, delete
 │   │   ├── services/exportService.ts           # Playwright PDF generation (headless Chromium)
+│   │   ├── services/importService.ts           # Orchestrates file extraction + AI normalization (no DB writes)
+│   │   ├── services/extractors/
+│   │   │   ├── extractorTypes.ts               # ExtractionResult type { text, wasTruncated, pageCount }
+│   │   │   ├── pdfExtractor.ts                 # pdfjs-dist legacy build — Node.js PDF text extraction
+│   │   │   └── docxExtractor.ts                # mammoth — DOCX raw text extraction + macro stripping
 │   │   ├── schemas/resumeSchema.ts             # Zod: resumeDataSchema, updateResumeInputSchema, etc.
+│   │   ├── schemas/importRequestSchema.ts      # Zod: file validation (MIME type, 5 MB size cap)
 │   │   ├── types/index.ts                      # ResumeUpdatedResponse and other shared types
 │   │   └── utils/slugUtils.ts                  # generateUniqueResumeSlug()
 │   └── ai/
 │       ├── services/resumeOptimizationService.ts  # 11-step AI pipeline: sanitize → prompt → call → parse → validate
+│       ├── services/resumeImportNormalizationService.ts  # 10-step import pipeline: sanitize → prompt → AI → parse → validate → UUIDs
 │       ├── schemas/aiRequestSchema.ts             # Zod: POST body (jobDescription: min 50, max 10000)
 │       ├── schemas/aiResponseSchema.ts            # Zod: AI JSON contract with preprocessors + .catch() fallbacks
+│       ├── schemas/aiImportResponseSchema.ts      # Zod: AI import response (partial Resume, all fields optional + .catch())
 │       └── types/index.ts                         # PendingAiOptimization, SectionAcceptanceMap, AiOptimizationState,
-│                                                  # AiEmptyResponseError, AiParseError, AiValidationError
+│                                                  # AiEmptyResponseError, AiParseError, AiValidationError,
+│                                                  # AiImportEmptyResponseError, AiImportParseError, AiImportValidationError,
+│                                                  # ResumeExtractionError
 │
 ├── lib/                                        # Shared utilities and libraries
 │   ├── prisma/
@@ -616,22 +629,22 @@ lib/
 │   │   ├── client.ts                           # Redis client for rate limiting
 │   │   └── limiters.ts                         # 7 reusable rate limiters (CRUD + export + AI + sync)
 │   ├── ai/
+│   ├── ai/
 │   │   ├── client.ts                           # OpenRouter singleton (server-only, validates OPENROUTER_API_KEY)
-│   │   ├── sanitize.ts                         # sanitizeJobDescription() + sanitizeAiTextOutput()
+│   │   ├── sanitize.ts                         # sanitizeJobDescription() + sanitizeAiTextOutput() + sanitizeResumeText()
 │   │   └── prompts/
-│   │       ├── promptVersion.ts                # RESUME_OPTIMIZATION_PROMPT_VERSION = 'v1'
-│   │       └── resumeOptimizationPrompt.ts     # buildSystemPrompt() + buildUserPrompt() + buildCompactResume()
+│   │       ├── promptVersion.ts                # RESUME_OPTIMIZATION_PROMPT_VERSION + RESUME_IMPORT_PROMPT_VERSION = 'v1'
+│   │       ├── resumeOptimizationPrompt.ts     # buildSystemPrompt() + buildUserPrompt() + buildCompactResume()
+│   │       └── resumeImportPrompt.ts           # buildImportSystemPrompt() + buildImportUserPrompt(text)
 │   └── utils.ts                                # General utility functions (cn, etc.)
-│
-├── hooks/                                      # TanStack Query + custom React hooks
 │   ├── use-resumes.ts                          # GET /api/v1/resumes → ResumeListItemJSON[]
 │   ├── use-resume.ts                           # GET /api/v1/resumes/[id] → single resume
 │   ├── use-create-resume.ts                    # POST /api/v1/resumes → create + redirect
 │   ├── use-update-resume.ts                    # PATCH /api/v1/resumes/[id] → save changes
 │   ├── use-delete-resume.ts                    # DELETE /api/v1/resumes/[id] → delete + navigate
 │   ├── use-optimize-resume.ts                  # POST /api/v1/resumes/[id]/optimize → AI optimization
+│   ├── use-import-resume.ts                    # POST /api/v1/resumes/import → AI resume import (no cache invalidation)
 │   └── use-mobile.ts                           # Breakpoint detection hook
-│
 ├── prisma/                                     # Prisma ORM configuration
 │   ├── schema.prisma                           # Database schema (User, Resume, ResumeTemplate)
 │   ├── seed.ts                                 # Seeds ResumeTemplate records
@@ -755,6 +768,41 @@ Key rules:
 - `acceptAiSection(section, itemId?)` / `rejectAiSection(section, itemId?)`
 - `applyAllAcceptedAiChanges()` — reads accepted items, applies to live resume, then clears
 
+### Import Resume Architecture
+
+The import feature is a stateless pre-create flow — no DB writes, no file storage:
+
+```
+POST /api/v1/resumes/import (multipart/form-data)
+  → auth → rate limit (3/hr) → importRequestSchema validate → arrayBuffer
+  → importResume() service
+  → format detect (MIME) → magic bytes check
+  → pdfExtractor (pdfjs-dist legacy) OR docxExtractor (mammoth)
+  → sanitizeResumeText() (15,000 char cap + injection strip)
+  → normalizeImportedResume() — AI pipeline at temp=0.1
+    → buildImportSystemPrompt() + buildImportUserPrompt(sanitizedText)
+    → OpenRouter call → extractJsonObject() → JSON.parse
+    → aiImportResponseSchema.safeParse() → sanitizeAiTextOutput()
+    → assign crypto.randomUUID() for all IDs
+  → return ImportedResumeData
+
+Client side:
+  useImportResume hook (onSuccess) → hydrateResume({ ...data, id: 'preview-draft', templateId: slug })
+  → ImportResumeDialog shows success summary
+  → user clicks "Continue to Editor" → dialog closes
+  → user reviews, edits, and saves via existing SaveResumeButton / useCreateResume
+```
+
+Key rules:
+
+- The import endpoint makes **no DB writes** — it returns `ImportedResumeData` to the client
+- File is processed in memory as `ArrayBuffer` and discarded — no S3, no persistence of raw uploads
+- `workerSrc` must be set to `pathToFileURL(require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs')).href` — empty string triggers the "fake worker" error
+- The worker specifier is built at runtime via `Array.join('/')` to prevent Turbopack from statically resolving the ESM module as a CommonJS require
+- `createRequire(import.meta.url)` is used for `.resolve()` path lookup only — the module is never `require()`'d
+- 4-layer prompt injection defense: `sanitizeResumeText()` → `<resume_text>` XML delimiters → system prompt reinforcement → Zod schema validation
+- `hydrateResume()` must always be called with `id: 'preview-draft'` and the selected `templateId` — never use IDs from the AI response for store hydration
+
 ### TanStack Query Hook Pattern
 
 All 6 data hooks follow the same pattern (mirrors `use-update-resume.ts`):
@@ -822,9 +870,9 @@ Centralized utilities in `lib/`:
 
 - **prisma/client.ts** — Single Prisma client instance (global singleton guard for hot-reload)
 - **ratelimit/client.ts** — Shared Redis connection
-- **ratelimit/limiters.ts** — 7 rate limiters: `resumeCreateLimiter`, `resumeUpdateLimiter`, `resumeDeleteLimiter`, `resumeExportLimiter`, `aiOptimizeLimiter`, `userSyncLimiter`, plus a general one
+- **ratelimit/limiters.ts** — 8 rate limiters: `resumeCreateLimiter`, `resumeUpdateLimiter`, `resumeDeleteLimiter`, `resumeExportLimiter`, `aiOptimizeLimiter`, `resumeImportLimiter`, `userSyncLimiter`, plus a general one
 - **ai/client.ts** — OpenRouter singleton (server-only; validates `OPENROUTER_API_KEY` at init)
-- **ai/sanitize.ts** — `sanitizeJobDescription()` (input) + `sanitizeAiTextOutput()` (output)
+- **ai/sanitize.ts** — `sanitizeJobDescription()` (input) + `sanitizeAiTextOutput()` (output) + `sanitizeResumeText()` (import text cap + injection strip)
 - **ai/prompts/resumeOptimizationPrompt.ts** — `buildSystemPrompt()` + `buildUserPrompt()` + `buildCompactResume()`
 - **utils.ts** — Helper functions (`cn`, etc.)
 
@@ -853,7 +901,9 @@ Centralized utilities in `lib/`:
 - **UI Components:** Shadcn/ui (50+ components)
 - **Validation:** Zod v4 (input schemas + AI response schemas with `.catch()` resilience)
 - **Styling:** Tailwind CSS v4
-- **PDF Export:** Playwright (headless Chromium) — runs in `(print)` route group
+- **PDF Export:** Playwright (headless Chromium) — runs in (print) route group
+- **PDF Import:** pdfjs-dist 6.x legacy build (pdfjs-dist/legacy/build/pdf.mjs) — Node.js text extraction
+- **DOCX Import:** mammoth — DOCX raw text extraction, strips macros automatically
 - **Package Manager:** PNPM
 - **Deployment:** Docker (docker-compose.yml available)
 
@@ -893,3 +943,8 @@ See CLAUDE.md "Rules For Environment Variables" section for detailed env rules.
 - All 6 data-fetching hooks use Axios + typed error shapes — never add a hook using raw `fetch()`
 - `EditorErrorBoundary` must wrap any component that renders complex user-controlled data (templates, form sections)
 - The Zustand AI slice is a non-destructive overlay — `applyAllAcceptedAiChanges()` must always call existing resume update actions, never write directly to `state.resume`
+- The import endpoint at `POST /api/v1/resumes/import` makes **no DB writes** — it is a pure in-memory transform: file bytes → `ImportedResumeData`
+- pdfjs-dist legacy build requires `GlobalWorkerOptions.workerSrc` set to a `file://` URL pointing at `pdfjs-dist/legacy/build/pdf.worker.mjs` — an empty string triggers a runtime "fake worker" error
+- The `workerSrc` specifier must be built at runtime via array join to prevent Turbopack from statically resolving it as a CommonJS require (pdfjs-dist is ESM-only)
+- `useImportResume` sets `retry: false` — never auto-retry AI calls per CLAUDE.md rules
+- After `useImportResume` succeeds, always call `hydrateResume({ ...data, id: 'preview-draft', templateId: slug })` — never use IDs from the AI response for store hydration
